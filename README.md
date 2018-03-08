@@ -2,17 +2,17 @@
 This repo contains various implementations that provide insights into the rankability of data.
 
 ## Authors
-Paul Anderson, Ph.D.
-Department of Computer Science
-Director, Data Science Program
+Paul Anderson, Ph.D.<br>
+Department of Computer Science<br>
+Director, Data Science Program<br>
 College of Charleston
 
-Amy Langville, Ph.D.
-Department of Mathematics
+Amy Langville, Ph.D.<br>
+Department of Mathematics<br>
 College of Charleston
 
-Tim Chartier, Ph.D.
-Department of Mathematics
+Tim Chartier, Ph.D.<br>
+Department of Mathematics<br>
 Davidson College
 
 ## Acknowledgements
