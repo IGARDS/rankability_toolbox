@@ -3,8 +3,8 @@ function [k,p,r,ranking,X,Y] = rankability_lp(D)
 n = size(D,1);
 smartk=(n^2-n)/2; 
 intcon=[1:2*n*n]';
-f=ones(2*n*n,1); % for unweighted graph
-%f=[ones(n*n,1);reshape(D,n*n,1)]; % for weighted graph D
+%f=ones(2*n*n,1); % for unweighted graph
+f=[ones(n*n,1);reshape(D,n*n,1)]; % for weighted graph D
 lb=[zeros(2*n*n,1)];
 ub=[ones(n*n,1)-reshape(D,n*n,1);reshape(D,n*n,1)];
 % force xii=0 and yii=0 for all i by setting lb=0 and ub=0 for these indices

@@ -1,4 +1,4 @@
-function [k,p,P] = brute_force(D)
+function [k,p,P] = rankability_exhaustive(D)
 % INPUT:  D = n by n data matrix of dominance information, uses only 
 %             zeros and ones; D(i,j)=1 if i beat j
 % OUTPUT: k = minimum number of changes (links added or removed) to
@@ -13,9 +13,11 @@ n = size(D,1);
 X=perms(1:n);
 X=X';
 fitness = zeros(1,size(X,2));
+perfectRG=triu(ones(size(D,1)),1);
 for l=1:size(X,2)
    perm=X(:,l);
-   fitness(l)=nnz(tril(D(perm,perm)))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
+   %fitness(l)=nnz(tril(D(perm,perm)))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
+   fitness(l)=sum(sum(abs(perfectRG-D(perm,perm))));
 end
 k=min(fitness);
 indexk=find(fitness==k);
