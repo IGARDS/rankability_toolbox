@@ -1,4 +1,16 @@
-function [k,p,r,ranking,X,Y] = rankability_lp(D)
+function [k,p,X,Y] = rankability_lp(D)
+%% Usage:
+% INPUT:  D = n by n data matrix of dominance information. 
+%             Can be unweighted (binary) or weighted. e.g., D(i,j)=1 if i beat j. 
+%             The diagonal terms must be 0. i.e., D(i,i) = 0
+%             For weighted D matrices, 0 <= D(i,j) <= 1
+% OUTPUT: k = minimum number of changes (links added or removed) to
+%             transform the input graph to a dominance graph, which can be 
+%             reordered to strictly upper triangular form.
+% OUTPUT: p = estimate of cardinality of set P of rankings (dominance graphs) that can
+%             be created if k perturbations are allowed. 
+% OUTPUT: X = see Anderson, Chatier, and Langville, in press
+% OUTPUT: Y = see Anderson, Chatier, and Langville, in press
 
 n = size(D,1);
 smartk=(n^2-n)/2; 
