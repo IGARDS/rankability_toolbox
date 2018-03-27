@@ -25,5 +25,5 @@ fprintf('Exhaustive k=%f\n',k);
 fprintf('Exhaustive Parallel k=%f\n',k);
 
 % lp method
-[k,p,r,ranking,X,Y] = rankability_lp(D);
+[k,p,X,Y] = rankability_lp(D);
 fprintf('LP k=%f\n',k);
