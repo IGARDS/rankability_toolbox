@@ -17,7 +17,14 @@ perfectRG=triu(ones(size(D,1)),1);
 for l=1:size(X,2)
    perm=X(:,l);
    %fitness(l)=nnz(tril(D(perm,perm)))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
-   fitness(l)=sum(sum(abs(perfectRG-D(perm,perm))));
+   Dperm = D(perm,perm);
+   Dperm_triu = ceil(triu(Dperm));
+   Dperm_tril = tril(Dperm);
+   Dperm = Dperm_triu+Dperm_tril;
+   fitness(l)=sum(sum(abs(perfectRG-Dperm)));
+   %fitness(l)=sum(sum(tril(D(perm,perm))))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
+
+   %fitness(l)=sum(sum(abs(perfectRG-(D(perm,perm)>0).*D(perm,perm))));
 end
 k=min(fitness);
 indexk=find(fitness==k);
