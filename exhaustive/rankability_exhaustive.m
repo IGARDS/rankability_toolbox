@@ -9,22 +9,28 @@ function [k,p,P] = rankability_exhaustive(D)
 %             problems P will be a partial set of rankings, not the full
 %             set of rankings.
 
+test_inxs = find(D < 1 & D > 0);
+unweighted = true;
+if ~isempty(test_inxs) % for unweighted graph 
+    unweighted = false;
+end
+
 n = size(D,1);
 X=perms(1:n);
 X=X';
 fitness = zeros(1,size(X,2));
 perfectRG=triu(ones(size(D,1)),1);
 for l=1:size(X,2)
-   perm=X(:,l);
-   %fitness(l)=nnz(tril(D(perm,perm)))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
-   Dperm = D(perm,perm);
-   Dperm_triu = ceil(triu(Dperm));
-   Dperm_tril = tril(Dperm);
-   Dperm = Dperm_triu+Dperm_tril;
-   fitness(l)=sum(sum(abs(perfectRG-Dperm)));
-   %fitness(l)=sum(sum(tril(D(perm,perm))))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
-
-   %fitness(l)=sum(sum(abs(perfectRG-(D(perm,perm)>0).*D(perm,perm))));
+    perm=X(:,l);
+    Dperm = D(perm,perm);
+    if unweighted
+        fitness(l)=sum(sum(abs(perfectRG-Dperm)));
+    else
+        Dperm_triu = ceil(triu(Dperm));
+        Dperm_tril = tril(Dperm);
+        Dperm = Dperm_triu+Dperm_tril;
+        fitness(l)=sum(sum(abs(perfectRG-Dperm)));
+    end
 end
 k=min(fitness);
 indexk=find(fitness==k);

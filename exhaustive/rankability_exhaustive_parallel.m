@@ -7,6 +7,12 @@ if n <= 7
     return
 end
 
+test_inxs = find(D < 1 & D > 0);
+unweighted = true;
+if ~isempty(test_inxs) % for unweighted graph 
+    unweighted = false;
+end
+
 perm=[1:n]; % first permutation input to nextperm.m function is [1:n]
 minfitness=n*n; %initialize minfitness at upperbound
 P=[];
@@ -48,16 +54,24 @@ while pc < max_pc
     if num_actual_parallel == 0 % Last one
         num_actual_parallel = 1;
     end
-    for i = 1:num_actual_parallel
+    parfor i = 1:num_actual_parallel
+        perfectRG=triu(ones(size(D,1)),1);
         start_position_ix = start_pos+i-1;
         perm = start_positions{start_position_ix};
                 
         % Inner loop that is executed independently
         proceed = true;
         while proceed
-            perfectRG=triu(ones(size(D,1)),1);
-            fitness=sum(sum(abs(perfectRG-D(perm,perm))));
-            %fitness=nnz(tril(D(perm,perm)))+(n*(n-1)/2 - nnz(triu(D(perm,perm))));
+            Dperm = D(perm,perm);
+            if unweighted
+                fitness=sum(sum(abs(perfectRG-Dperm)));
+            else
+                Dperm_triu = ceil(triu(Dperm));
+                Dperm_tril = tril(Dperm);
+                Dperm = Dperm_triu+Dperm_tril;
+                fitness=sum(sum(abs(perfectRG-Dperm)));
+            end
+
             if fitness < parallel_fitness(i)
                 parallel_fitness(i) = fitness;
                 parallel_P{i} = [perm'];
