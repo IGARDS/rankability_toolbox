@@ -81,10 +81,7 @@ while pc < max_pc
             if unweighted
                 fitness=sum(sum(abs(perfectRG-Dperm)));
             else
-                Dperm_triu = ceil(triu(Dperm));
-                Dperm_tril = tril(Dperm);
-                Dperm = Dperm_triu+Dperm_tril;
-                fitness=sum(sum(abs(perfectRG-Dperm)));
+                fitness=calc_k(Dperm);
             end
 
             if fitness < parallel_fitness(i)

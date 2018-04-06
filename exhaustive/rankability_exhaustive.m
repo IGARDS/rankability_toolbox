@@ -29,10 +29,7 @@ for l=1:size(X,2)
     if unweighted
         fitness(l)=sum(sum(abs(perfectRG-Dperm)));
     else
-        Dperm_triu = ceil(triu(Dperm));
-        Dperm_tril = tril(Dperm);
-        Dperm = Dperm_triu+Dperm_tril;
-        fitness(l)=sum(sum(abs(perfectRG-Dperm)));
+        fitness(l)=calc_k(Dperm);
     end
 end
 k=min(fitness);
