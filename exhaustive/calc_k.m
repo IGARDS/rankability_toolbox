@@ -7,4 +7,4 @@ k = length(find(Dperm_triu == 0));
 % weight
 Dperm_tril = tril(Dperm);
 inxs = find(Dperm_tril ~= 0);
-k = k + Dperm_tril(inxs);
+k = k + sum(sum(Dperm_tril(inxs)));
