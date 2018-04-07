@@ -12,7 +12,7 @@ function [k,p,P] = rankability_exhaustive(D)
 % OUTPUT: P = Set of rankings (dominance graphs) that can
 %             be created if k perturbations are allowed. 
 
-test_inxs = find(D < 1 & D > 0);
+test_inxs = find(D ~= 1 & D ~= 0);
 unweighted = true;
 if ~isempty(test_inxs) % for unweighted graph 
     unweighted = false;

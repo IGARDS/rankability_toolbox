@@ -22,7 +22,7 @@ if n <= 7
     return
 end
 
-test_inxs = find(D < 1 & D > 0);
+test_inxs = find(D ~= 1 & D ~= 0);
 unweighted = true;
 if ~isempty(test_inxs) % for unweighted graph 
     unweighted = false;
