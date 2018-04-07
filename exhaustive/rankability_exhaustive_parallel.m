@@ -29,7 +29,7 @@ if ~isempty(test_inxs) % for unweighted graph
 end
 
 perm=[1:n]; % first permutation input to nextperm.m function is [1:n]
-minfitness=n*n; %initialize minfitness at upperbound
+minfitness=Inf; %initialize minfitness at upperbound
 P=[];
 
 p = gcp(); % If no pool, do not create new one.
