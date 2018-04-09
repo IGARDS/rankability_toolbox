@@ -1,4 +1,4 @@
-function [k,p,P,stats] = rankability_exhaustive_parallel(D,num_start_positions,varargin)
+function [k,p,P] = rankability_exhaustive_parallel(D,num_start_positions,varargin)
 %% Usage:
 % INPUT:  D = n by n data matrix of dominance information. 
 %             Can be unweighted (binary) or weighted. e.g., D(i,j)=1 if i beat j. 
@@ -24,7 +24,7 @@ if ~isempty(ix)
 end
 
 if n <= 7
-    [k,p,P,stats] = rankability_exhaustive(D,varargin{:});
+    [k,p,P] = rankability_exhaustive(D,varargin);
     return
 end
 
@@ -68,8 +68,7 @@ start_pos = 1;
 end_pos = min([start_pos + num_parallel,length(start_positions)]);
 
 if optargs.normalize
-    k_values = zeros(1,max_pc);
-    k_values_counter = 1;
+    k_values = {};
 end
 
 while pc < max_pc
@@ -82,15 +81,12 @@ while pc < max_pc
     end
     if optargs.normalize
         parallel_k_values = {};
-        for i = 1:num_actual_parallel
-            parallel_k_values{i} = [];
-        end
     end
     parfor i = 1:num_actual_parallel
         perfectRG=triu(ones(size(D,1)),1);
         start_position_ix = start_pos+i-1;
         perm = start_positions{start_position_ix};
-        
+                
         % Inner loop that is executed independently
         proceed = true;
         while proceed
@@ -102,7 +98,8 @@ while pc < max_pc
             end
 
             if  optargs.normalize
-                parallel_k_values{i}(end+1) = fitness;
+                kavg_calculated(i) = kavg_calculated(i) + k;
+                kavg_calculated(i) = pavg_calculated(i) + p;
             end
             
             if fitness < parallel_fitness(i)
@@ -128,12 +125,7 @@ while pc < max_pc
             end
         end
     end
-    if optargs.normalize
-        for i = 1:length(parallel_k_values)
-            k_values(k_values_counter:(-1 + k_values_counter+length(parallel_k_values{i}))) = parallel_k_values{i};
-            k_values_counter = k_values_counter + length(parallel_k_values{i});
-        end
-    end
+    
     fitness = min(parallel_fitness);
     if fitness < minfitness
         P = [];
@@ -158,28 +150,6 @@ fprintf('Finished parallel brute force run\n');
 k = minfitness;
 p = size(P,2);
 
-r = k*p;
-stats = struct('r',r);
-if optargs.normalize
-    kavg = mean(k_values);
-    kvalues = unique(k_values);
-    pvalues = zeros(1,length(kvalues));
-    rvalues = zeros(1,length(kvalues));
-    for i = 1:length(kvalues)
-        kv = kvalues(i);
-        indexkv = find(k_values == kv);
-        pvalues(i) = length(indexkv);
-        rvalues(i) = kv*length(indexkv);
-    end
-    pavg = mean(pvalues);
-    ravg = mean(rvalues);
-    pnorm = p/pavg;
-    knorm = k/kavg;
-    rnorm = 1-r/ravg;
-    stats.pnorm = pnorm;
-    stats.knorm = knorm;
-    stats.rnorm = rnorm;
-end
 
 return
 
