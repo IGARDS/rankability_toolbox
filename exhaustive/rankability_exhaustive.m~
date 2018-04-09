@@ -1,4 +1,4 @@
-function [k,p,P,stats] = rankability_exhaustive(D,varargin)
+function [k,p,P] = rankability_exhaustive(D,varargin)
 %% Usage:
 % INPUT:  D = n by n data matrix of dominance information. 
 %             Can be unweighted (binary) or weighted. e.g., D(i,j)=1 if i beat j. 
@@ -43,26 +43,10 @@ k=min(fitness);
 indexk=find(fitness==k);
 p=length(indexk);
 P=X(:,indexk);
-r = k*p;
 
-stats = struct('r',r);
 if optargs.normalize
     kavg = mean(fitness);
     kvalues = unique(fitness);
-    pvalues = zeros(1,length(kvalues));
-    rvalues = zeros(1,length(kvalues));
-    for i = 1:length(kvalues)
-        kv = kvalues(i);
-        indexkv = find(fitness == kv);
-        pvalues(i) = length(indexkv);
-        rvalues(i) = kv*length(indexkv);
+    ps = zeros(1,length(kvalu
+    for kv = 
     end
-    pavg = mean(pvalues);
-    ravg = mean(rvalues);
-    pnorm = p/pavg;
-    knorm = k/kavg;
-    rnorm = 1-r/ravg;
-    stats.pnorm = pnorm;
-    stats.knorm = knorm;
-    stats.rnorm = rnorm;
-end

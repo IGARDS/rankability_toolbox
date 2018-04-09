@@ -1,4 +1,4 @@
-function [k,p,P] = rankability_exhaustive_parallel(D,num_start_positions)
+function [k,p,P] = rankability_exhaustive_parallel(D,num_start_positions,varargin)
 %% Usage:
 % INPUT:  D = n by n data matrix of dominance information. 
 %             Can be unweighted (binary) or weighted. e.g., D(i,j)=1 if i beat j. 
@@ -17,8 +17,14 @@ function [k,p,P] = rankability_exhaustive_parallel(D,num_start_positions)
 
 n=size(D,1);
 
+optargs = struct('normalize', false);
+ix = find(strcmp(varargin,'normalize'),1);
+if ~isempty(ix)
+    optargs.normalize = varargin{ix+1};
+end
+
 if n <= 7
-    [k,p,P] = rankability_exhaustive(D);
+    [k,p,P] = rankability_exhaustive(D,varargin);
     return
 end
 

@@ -6,5 +6,5 @@ k = length(find(Dperm_triu == 0));
 % Find any in the lower that can be removed and remove them based on their
 % weight
 Dperm_tril = tril(Dperm);
-inxs = find(Dperm_tril ~= 0);
-k = k + sum(sum(Dperm_tril(inxs)));
+%inxs = find(Dperm_tril ~= 0);
+k = k + sum(sum(Dperm_tril));
