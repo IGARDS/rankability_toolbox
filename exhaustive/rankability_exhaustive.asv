@@ -52,16 +52,14 @@ if optargs.normalize
     pvalues = zeros(1,ntimes);
     kvalues = zeros(1,ntimes);
     for j = 1:ntimes
-        perm1 = randperm(size(D,1));
-        perm2 = randperm(size(D,1));
-        [k_perm,p_perm,P_perm] = rankability_exhaustive(D(perm1,perm2));
-        rvalues(j) = k_perm*p_perm;
-        kvalues(j) = k_perm;
-        pvalues(j) = p_perm;
+        perm = randperm(size(D,1));
+        [k_perm,p_perm,P_perm,stats] = rankability_exhaustive(D(perm,:));
+        rvalues(j) = k*p;
+        kvalues(j) = k;
+        pvalues(j) = p;
     end
-    rnorm = length(find(k*p < rvalues))/ntimes;
-    pnorm = length(find(p < pvalues))/ntimes;
-    knorm = length(find(k < kvalues))/ntimes;
+    rnorm = length(find(k*p <= rvalues))/length(rvalues);
+    pnorm = length(find(p <= rvalues))/length(rvalues);
 
     stats.pnorm = pnorm;
     stats.knorm = knorm;

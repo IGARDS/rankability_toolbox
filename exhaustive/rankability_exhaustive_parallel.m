@@ -67,11 +67,6 @@ fprintf('Starting new parallel brute force run\n');
 start_pos = 1;
 end_pos = min([start_pos + num_parallel,length(start_positions)]);
 
-if optargs.normalize
-    k_values = zeros(1,max_pc);
-    k_values_counter = 1;
-end
-
 while pc < max_pc
     parallel_fitness = Inf*ones(1,num_parallel);
     parallel_P = cell(1,num_parallel);
@@ -79,12 +74,6 @@ while pc < max_pc
     num_actual_parallel = end_pos-start_pos;
     if num_actual_parallel == 0 % Last one
         num_actual_parallel = 1;
-    end
-    if optargs.normalize
-        parallel_k_values = {};
-        for i = 1:num_actual_parallel
-            parallel_k_values{i} = [];
-        end
     end
     parfor i = 1:num_actual_parallel
         perfectRG=triu(ones(size(D,1)),1);
@@ -101,10 +90,6 @@ while pc < max_pc
                 fitness=calc_k(Dperm);
             end
 
-            if  optargs.normalize
-                parallel_k_values{i}(end+1) = fitness;
-            end
-            
             if fitness < parallel_fitness(i)
                 parallel_fitness(i) = fitness;
                 parallel_P{i} = [perm'];
@@ -126,12 +111,6 @@ while pc < max_pc
             if isKey(start_positions_map,perm_str)
                 proceed = false;
             end
-        end
-    end
-    if optargs.normalize
-        for i = 1:length(parallel_k_values)
-            k_values(k_values_counter:(-1 + k_values_counter+length(parallel_k_values{i}))) = parallel_k_values{i};
-            k_values_counter = k_values_counter + length(parallel_k_values{i});
         end
     end
     fitness = min(parallel_fitness);
@@ -159,23 +138,25 @@ k = minfitness;
 p = size(P,2);
 
 r = k*p;
+
 stats = struct('r',r);
 if optargs.normalize
-    kavg = mean(k_values);
-    kvalues = unique(k_values);
-    pvalues = zeros(1,length(kvalues));
-    rvalues = zeros(1,length(kvalues));
-    for i = 1:length(kvalues)
-        kv = kvalues(i);
-        indexkv = find(k_values == kv);
-        pvalues(i) = length(indexkv);
-        rvalues(i) = kv*length(indexkv);
+    ntimes = 100;
+    rvalues = zeros(1,ntimes);
+    pvalues = zeros(1,ntimes);
+    kvalues = zeros(1,ntimes);
+    for j = 1:ntimes
+        perm1 = randperm(size(D,1));
+        perm2 = randperm(size(D,1));
+        [k_perm,p_perm,P_perm] = rankability_exhaustive_parallel(D(perm1,perm2),num_start_positions);
+        rvalues(j) = k_perm*p_perm;
+        kvalues(j) = k_perm;
+        pvalues(j) = p_perm;
     end
-    pavg = mean(pvalues);
-    ravg = mean(rvalues);
-    pnorm = p/pavg;
-    knorm = k/kavg;
-    rnorm = 1-r/ravg;
+    rnorm = length(find(k*p < rvalues))/ntimes;
+    pnorm = length(find(p < pvalues))/ntimes;
+    knorm = length(find(k < kvalues))/ntimes;
+
     stats.pnorm = pnorm;
     stats.knorm = knorm;
     stats.rnorm = rnorm;
