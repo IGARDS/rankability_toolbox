@@ -50,17 +50,9 @@ for j = 1:ntimes
 end
 hist(rnorm);
 
-D=ones(7,7);
-for i = 1:size(D,1)
-    D(i,i) = 0;
-end
-[k,p,P,stats] = rankability_exhaustive(D,'normalize',true);
-stats
-
 D=zeros(7,7);
-for i = 1:size(D,1)
-    D(i,i) = 0;
+for i = 1:size(D,1)-1
+    D(i,i+1) = 1;
 end
 [k,p,P,stats] = rankability_exhaustive(D,'normalize',true);
 stats
-

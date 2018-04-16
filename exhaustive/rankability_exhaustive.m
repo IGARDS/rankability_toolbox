@@ -43,27 +43,32 @@ k=min(fitness);
 indexk=find(fitness==k);
 p=length(indexk);
 P=X(:,indexk);
+
 r = k*p;
 
 stats = struct('r',r);
 if optargs.normalize
-    ntimes = 100;
-    rvalues = zeros(1,ntimes);
-    pvalues = zeros(1,ntimes);
-    kvalues = zeros(1,ntimes);
-    for j = 1:ntimes
-        perm1 = randperm(size(D,1));
-        perm2 = randperm(size(D,1));
-        [k_perm,p_perm,P_perm] = rankability_exhaustive(D(perm1,perm2));
-        rvalues(j) = k_perm*p_perm;
-        kvalues(j) = k_perm;
-        pvalues(j) = p_perm;
+    kmax = (n^2-n)/2;
+    if p == 1 % special case
+        tau = 0;
+        pval = NaN;
+        rho = NaN;
+        pval_flattened = NaN;
+    else
+        [rho,pval] = corr(P,'type','Kendall');
+        pval_flattened = NaN*ones(1,(size(pval,1)^2-size(pval,1))/2);
+        c = 1;
+        for i = 1:size(pval,1)
+            for j = (i+1):size(pval,1)
+                pval_flattened(c) = pval(i,j);
+                c = c + 1;
+            end
+        end
+        tau = mean(pval_flattened);
     end
-    rnorm = length(find(k*p < rvalues))/ntimes;
-    pnorm = length(find(p < pvalues))/ntimes;
-    knorm = length(find(k < kvalues))/ntimes;
-
-    stats.pnorm = pnorm;
-    stats.knorm = knorm;
+    rnorm = (kmax - k)/kmax/(p*(1-tau));
     stats.rnorm = rnorm;
+    stats.pval = pval;
+    stats.rho = rho;
+    stats.pval_flattened = pval_flattened;
 end

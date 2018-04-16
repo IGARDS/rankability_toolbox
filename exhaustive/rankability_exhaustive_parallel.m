@@ -141,14 +141,27 @@ r = k*p;
 
 stats = struct('r',r);
 if optargs.normalize
-    ntimes = 100;
+    ntimes = 10;
     rvalues = zeros(1,ntimes);
     pvalues = zeros(1,ntimes);
     kvalues = zeros(1,ntimes);
+    Dcopy = D;
+    for i = 1:size(D,1)
+        Dcopy(i,i) = NaN;
+    end
+    Dflat = reshape(Dcopy,1,size(D,1)*size(D,1));
+    naninxs = find(isnan(Dflat));
+    inxs = find(~isnan(Dflat));
+    insert = @(a, x, n)cat(2,  x(1:n), a, x(n+1:end));
+    Dflat_nodiag = Dflat(inxs);
     for j = 1:ntimes
-        perm1 = randperm(size(D,1));
-        perm2 = randperm(size(D,1));
-        [k_perm,p_perm,P_perm] = rankability_exhaustive_parallel(D(perm1,perm2),num_start_positions);
+        perm = randperm(length(Dflat_nodiag));
+        Dflat_nodiag_shuffled = Dflat_nodiag(perm);
+        for ix = naninxs-1
+            Dflat_nodiag_shuffled = insert(0,Dflat_nodiag_shuffled,ix);
+        end
+        Dshuffled = reshape(Dflat_nodiag_shuffled,size(D,1),size(D,1));
+        [k_perm,p_perm,P_perm] = rankability_exhaustive_parallel(Dshuffled,num_start_positions);
         rvalues(j) = k_perm*p_perm;
         kvalues(j) = k_perm;
         pvalues(j) = p_perm;
@@ -160,6 +173,9 @@ if optargs.normalize
     stats.pnorm = pnorm;
     stats.knorm = knorm;
     stats.rnorm = rnorm;
+    stats.rvalues = rvalues;
+    stats.kvalues = kvalues;
+    stats.pvalues = pvalues;
 end
 
 return
