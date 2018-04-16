@@ -141,43 +141,33 @@ r = k*p;
 
 stats = struct('r',r);
 if optargs.normalize
-    ntimes = 10;
-    rvalues = zeros(1,ntimes);
-    pvalues = zeros(1,ntimes);
-    kvalues = zeros(1,ntimes);
-    Dcopy = D;
-    for i = 1:size(D,1)
-        Dcopy(i,i) = NaN;
+    if ~exist('max_value')
+        max_value = max(max(D)) - min(min(D));
     end
-    Dflat = reshape(Dcopy,1,size(D,1)*size(D,1));
-    naninxs = find(isnan(Dflat));
-    inxs = find(~isnan(Dflat));
-    insert = @(a, x, n)cat(2,  x(1:n), a, x(n+1:end));
-    Dflat_nodiag = Dflat(inxs);
-    for j = 1:ntimes
-        perm = randperm(length(Dflat_nodiag));
-        Dflat_nodiag_shuffled = Dflat_nodiag(perm);
-        for ix = naninxs-1
-            Dflat_nodiag_shuffled = insert(0,Dflat_nodiag_shuffled,ix);
+    kmax = max_value*(n^2-n)/2;
+    if p == 1 % special case
+        tau = 0;
+        pval = NaN;
+        rho = NaN;
+        pval_flattened = NaN;
+    else
+        [rho,pval] = corr(P,'type','Kendall');
+        pval_flattened = NaN*ones(1,(size(pval,1)^2-size(pval,1))/2);
+        c = 1;
+        for i = 1:size(pval,1)
+            for j = (i+1):size(pval,1)
+                pval_flattened(c) = pval(i,j);
+                c = c + 1;
+            end
         end
-        Dshuffled = reshape(Dflat_nodiag_shuffled,size(D,1),size(D,1));
-        [k_perm,p_perm,P_perm] = rankability_exhaustive_parallel(Dshuffled,num_start_positions);
-        rvalues(j) = k_perm*p_perm;
-        kvalues(j) = k_perm;
-        pvalues(j) = p_perm;
+        tau = mean(pval_flattened);
     end
-    rnorm = length(find(k*p < rvalues))/ntimes;
-    pnorm = length(find(p < pvalues))/ntimes;
-    knorm = length(find(k < kvalues))/ntimes;
-
-    stats.pnorm = pnorm;
-    stats.knorm = knorm;
+    rnorm = (kmax - k)/kmax/(p*(1-tau));
     stats.rnorm = rnorm;
-    stats.rvalues = rvalues;
-    stats.kvalues = kvalues;
-    stats.pvalues = pvalues;
+    stats.pval = pval;
+    stats.rho = rho;
+    stats.pval_flattened = pval_flattened;
 end
-
 return
 
 

@@ -48,7 +48,10 @@ r = k*p;
 
 stats = struct('r',r);
 if optargs.normalize
-    kmax = (n^2-n)/2;
+    if ~exist('max_value')
+        max_value = max(max(D)) - min(min(D));
+    end
+    kmax = max_value*(n^2-n)/2;
     if p == 1 % special case
         tau = 0;
         pval = NaN;
