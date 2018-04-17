@@ -13,65 +13,33 @@ function [k,p,P,stats] = rankability_exhaustive(D,varargin)
 %             be created if k perturbations are allowed. 
 
 % set defaults for optional inputs
-optargs = struct('normalize', false);
-ix = find(strcmp(varargin,'normalize'),1);
+optargs = struct('transform', false);
+ix = find(strcmp(varargin,'transform'),1);
 if ~isempty(ix)
-    optargs.normalize = varargin{ix+1};
-end
-
-test_inxs = find(D ~= 1 & D ~= 0);
-unweighted = true;
-if ~isempty(test_inxs) % for unweighted graph 
-    unweighted = false;
+    optargs.transform = varargin{ix+1};
 end
 
 n = size(D,1);
 X=perms(1:n);
 X=X';
 fitness = zeros(1,size(X,2));
-perfectRG=triu(ones(size(D,1)),1);
 for l=1:size(X,2)
     perm=X(:,l);
     Dperm = D(perm,perm);
-    if unweighted
-        fitness(l)=sum(sum(abs(perfectRG-Dperm)));
-    else
-        fitness(l)=calc_k(Dperm);
-    end
+    fitness(l)=calc_k(Dperm);
 end
 k=min(fitness);
 indexk=find(fitness==k);
 p=length(indexk);
 P=X(:,indexk);
 
-r = k*p;
+if ~exist('max_value')
+    max_value = max(max(D));
+end
+kmax = max_value*(n^2-n)/2;
+r = 1-k*p/(kmax*factorial(n));
 
 stats = struct('r',r);
-if optargs.normalize
-    if ~exist('max_value')
-        max_value = max(max(D)) - min(min(D));
-    end
-    kmax = max_value*(n^2-n)/2;
-    if p == 1 % special case
-        tau = 0;
-        pval = NaN;
-        rho = NaN;
-        pval_flattened = NaN;
-    else
-        [rho,pval] = corr(P,'type','Kendall');
-        pval_flattened = NaN*ones(1,(size(pval,1)^2-size(pval,1))/2);
-        c = 1;
-        for i = 1:size(pval,1)
-            for j = (i+1):size(pval,1)
-                pval_flattened(c) = pval(i,j);
-                c = c + 1;
-            end
-        end
-        tau = mean(pval_flattened);
-    end
-    rnorm = (kmax - k)/kmax/(p*(1-tau));
-    stats.rnorm = rnorm;
-    stats.pval = pval;
-    stats.rho = rho;
-    stats.pval_flattened = pval_flattened;
+if optargs.transform
+    stats = compute_rtransformed(k,p,P,kmax,stats);
 end

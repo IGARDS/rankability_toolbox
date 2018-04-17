@@ -17,21 +17,15 @@ function [k,p,P,stats] = rankability_exhaustive_parallel(D,num_start_positions,v
 
 n=size(D,1);
 
-optargs = struct('normalize', false);
-ix = find(strcmp(varargin,'normalize'),1);
+optargs = struct('transform', false);
+ix = find(strcmp(varargin,'transform'),1);
 if ~isempty(ix)
-    optargs.normalize = varargin{ix+1};
+    optargs.transform = varargin{ix+1};
 end
 
 if n <= 7
     [k,p,P,stats] = rankability_exhaustive(D,varargin{:});
     return
-end
-
-test_inxs = find(D ~= 1 & D ~= 0);
-unweighted = true;
-if ~isempty(test_inxs) % for unweighted graph 
-    unweighted = false;
 end
 
 perm=[1:n]; % first permutation input to nextperm.m function is [1:n]
@@ -84,11 +78,7 @@ while pc < max_pc
         proceed = true;
         while proceed
             Dperm = D(perm,perm);
-            if unweighted
-                fitness=sum(sum(abs(perfectRG-Dperm)));
-            else
-                fitness=calc_k(Dperm);
-            end
+            fitness=calc_k(Dperm);
 
             if fitness < parallel_fitness(i)
                 parallel_fitness(i) = fitness;
@@ -137,36 +127,15 @@ fprintf('Finished parallel brute force run\n');
 k = minfitness;
 p = size(P,2);
 
-r = k*p;
+if ~exist('max_value')
+    max_value = max(max(D));
+end
+kmax = max_value*(n^2-n)/2;
+r = 1-k*p/(kmax*factorial(n));
 
 stats = struct('r',r);
-if optargs.normalize
-    if ~exist('max_value')
-        max_value = max(max(D)) - min(min(D));
-    end
-    kmax = max_value*(n^2-n)/2;
-    if p == 1 % special case
-        tau = 0;
-        pval = NaN;
-        rho = NaN;
-        pval_flattened = NaN;
-    else
-        [rho,pval] = corr(P,'type','Kendall');
-        pval_flattened = NaN*ones(1,(size(pval,1)^2-size(pval,1))/2);
-        c = 1;
-        for i = 1:size(pval,1)
-            for j = (i+1):size(pval,1)
-                pval_flattened(c) = pval(i,j);
-                c = c + 1;
-            end
-        end
-        tau = mean(pval_flattened);
-    end
-    rnorm = (kmax - k)/kmax/(p*(1-tau));
-    stats.rnorm = rnorm;
-    stats.pval = pval;
-    stats.rho = rho;
-    stats.pval_flattened = pval_flattened;
+if optargs.transform
+    stats = compute_rtransformed(k,p,P,kmax,stats);
 end
 return
 

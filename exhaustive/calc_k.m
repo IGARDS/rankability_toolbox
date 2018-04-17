@@ -1,6 +1,6 @@
 function k = calc_k(Dperm,max_value)
 if ~exist('max_value')
-    max_value = max(max(Dperm)) - min(min(Dperm));
+    max_value = max(max(Dperm));
 end
 perfectRG=triu(max_value*ones(size(Dperm,1)),1);
 k = sum(sum(abs(perfectRG-Dperm)));
