@@ -109,7 +109,7 @@ options=optimoptions('linprog','Display','none','Algorithm','interior-point');
 %output
 %LPtime=toc
 
-k=fval+sum(sum(D.*(cmax*ones(n,n)-C)));
+k=round(1000*(fval+sum(sum(D.*(cmax*ones(n,n)-C)))))/1000;
 X=reshape(x(1:n^2),n,n);
 Y=reshape(x(n^2+1:2*n^2),n,n);
 %D+X-Y;

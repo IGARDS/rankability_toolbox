@@ -23,7 +23,7 @@ if ~isempty(ix)
     optargs.transform = varargin{ix+1};
 end
 
-if n <= 7
+if n <= 5
     [k,p,P,stats] = rankability_exhaustive(D,varargin{:});
     return
 end
