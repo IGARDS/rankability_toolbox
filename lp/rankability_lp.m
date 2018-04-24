@@ -12,6 +12,14 @@ function [k,p,X,Y] = rankability_lp(D)
 % OUTPUT: X = see Anderson, Chatier, and Langville, in press
 % OUTPUT: Y = see Anderson, Chatier, and Langville, in press
 
+proceed = check_d(D);
+if ~proceed
+    msgID = 'rankability:invalid_D';
+    msg = 'D matrix is invalid. Make sure it is a square matrix and contains only integers.';
+    baseException = MException(msgID,msg);
+    throw(baseException)
+end
+
 n = size(D,1);
 C=D;
 D=C>0;D=double(D);
