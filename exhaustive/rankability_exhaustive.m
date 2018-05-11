@@ -12,6 +12,14 @@ function [k,p,P,stats] = rankability_exhaustive(D,varargin)
 % OUTPUT: P = Set of rankings (dominance graphs) that can
 %             be created if k perturbations are allowed. 
 
+proceed = check_d(D);
+if ~proceed
+    msgID = 'rankability:invalid_D';
+    msg = 'D matrix is invalid. Make sure it is a square matrix and contains only integers.';
+    baseException = MException(msgID,msg);
+    throw(baseException)
+end
+
 % set defaults for optional inputs
 optargs = struct('transform', false);
 ix = find(strcmp(varargin,'transform'),1);

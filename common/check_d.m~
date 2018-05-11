@@ -1,0 +1,3 @@
+function proceed = check_d(D)
+rounded_D = round(D);
+if sum(sum(

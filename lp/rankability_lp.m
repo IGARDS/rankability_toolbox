@@ -12,17 +12,27 @@ function [k,p,X,Y] = rankability_lp(D)
 % OUTPUT: X = see Anderson, Chatier, and Langville, in press
 % OUTPUT: Y = see Anderson, Chatier, and Langville, in press
 
-n = size(D,1);
-smartk=(n^2-n)/2; 
-test_inxs = find(D < 1 & D > 0);
-if isempty(test_inxs) % for unweighted graph 
-    f=ones(2*n*n,1); 
-else
-    % D here is assumed to act as a cost matrix
-    f=[ones(n*n,1);reshape(D,n*n,1)]; % for weighted graph D
-    % D needs to be binary for constraints
-    D = ceil(D);
+proceed = check_d(D);
+if ~proceed
+    msgID = 'rankability:invalid_D';
+    msg = 'D matrix is invalid. Make sure it is a square matrix and contains only integers.';
+    baseException = MException(msgID,msg);
+    throw(baseException)
 end
+
+n = size(D,1);
+C=D;
+D=C>0;D=double(D);
+
+intcon=[1:2*n*n]';
+cmax=max(max(C)); % max element in C
+smartk = n*n*cmax;
+vecD=reshape(D,n*n,1);vecC=reshape(C,n*n,1); %vectorize C and D matrices
+wx=cmax-vecD.*(cmax-vecC);
+wy=vecC-vecD.*(cmax-vecC);
+%f=ones(2*n*n,1); % for unweighted graph
+%f=[ones(n*n,1);reshape(D,n*n,1)]; % original idea for weighted graph 
+f=[wx;wy]; % Paul's norm idea for weighted graph C
 lb=[zeros(2*n*n,1)];
 ub=[ones(n*n,1)-reshape(D,n*n,1);reshape(D,n*n,1)];
 % force xii=0 and yii=0 for all i by setting lb=0 and ub=0 for these indices
@@ -32,7 +42,6 @@ ub(indicesxii)=0;
 indicesyii=n^2+1:n+1:2*n^2;
 lb(indicesyii)=0;
 ub(indicesyii)=0;
-
 
 % inequality 1: xij + yij <= 1; for all i,j
 % number of contraints of this type: n^2
@@ -108,10 +117,10 @@ options=optimoptions('linprog','Display','none','Algorithm','interior-point');
 %output
 %LPtime=toc
 
-k=fval;
+k=round(1000*(fval+sum(sum(D.*(cmax*ones(n,n)-C)))))/1000;
 X=reshape(x(1:n^2),n,n);
 Y=reshape(x(n^2+1:2*n^2),n,n);
-D+X-Y;
+%D+X-Y;
 rowsum=sum(D+X-Y,2);
 [r,ranking]=sort(rowsum,'descend');
 nfracX=nnz(.001<X&X<.999);

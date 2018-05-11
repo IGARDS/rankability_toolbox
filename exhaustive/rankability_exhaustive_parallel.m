@@ -15,6 +15,14 @@ function [k,p,P,stats] = rankability_exhaustive_parallel(D,num_start_positions,v
 % OUTPUT: P = Set of rankings (dominance graphs) that can
 %             be created if k perturbations are allowed. 
 
+proceed = check_d(D);
+if ~proceed
+    msgID = 'rankability:invalid_D';
+    msg = 'D matrix is invalid. Make sure it is a square matrix and contains only integers.';
+    baseException = MException(msgID,msg);
+    throw(baseException)
+end
+
 n=size(D,1);
 
 optargs = struct('transform', false);
@@ -23,7 +31,7 @@ if ~isempty(ix)
     optargs.transform = varargin{ix+1};
 end
 
-if n <= 7
+if n <= 5
     [k,p,P,stats] = rankability_exhaustive(D,varargin{:});
     return
 end

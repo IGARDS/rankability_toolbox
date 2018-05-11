@@ -1,3 +1,5 @@
+% List of examples in no particular order
+
 % Unweighted D matrix
 fprintf('Loading the unweighted example data\n');
 D = csvread('data/unweighted1.csv');
