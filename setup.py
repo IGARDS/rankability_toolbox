@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="pyrankability",
-    version="0.0.3",
+    version="0.0.8",
     author="Paul Anderson",
     author_email="pauleanderson@gmail.com",
     description="Rankability Toolbox",
@@ -10,11 +10,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/pyrankability",
     packages=setuptools.find_packages(),
-    install_requires=[
-          'networkx',
-          'numpy',
-          'pandas'
-    ],
+    install_requires=[ "networkx", "numpy", "pandas" , "scipy", "dask", "toolz", "joblib", "distributed", "sklearn"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
