@@ -10,6 +10,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/pyrankability",
     packages=setuptools.find_packages(),
+    install_requires=[
+          'networkx',
+          'numpy',
+          'pandas'
+    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

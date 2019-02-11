@@ -1,8 +1,9 @@
 import math
 import numpy as np
 import json
+import sys
 
-np.set_printoptions(threshold=np.nan)
+np.set_printoptions(threshold=sys.maxsize)
 
 def nCr(n,r):
     f = math.factorial
