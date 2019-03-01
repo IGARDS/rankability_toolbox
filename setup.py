@@ -6,7 +6,7 @@ setuptools.setup(
     author="Paul Anderson",
     author_email="pauleanderson@gmail.com",
     description="Rankability Toolbox",
-    long_description=open("README.txt").read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/pyrankability",
     packages=setuptools.find_packages(),

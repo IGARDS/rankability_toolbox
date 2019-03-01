@@ -7,10 +7,7 @@ Created on Mar 25
 """
 
 import numpy as np
-try:
-  from gurobipy import *
-except: # needed for testing purposes
-  pass
+from gurobipy import *
 import itertools
 
 from .common import *

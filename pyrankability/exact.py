@@ -3,11 +3,7 @@ import numpy as np
 from scipy.misc import comb
 import math
 
-from dask import delayed
-#import dask.multiprocessing
-#import dask.threaded
-#from dask.distributed import Client
-#client = Client("cluster-address:8786")
+from dask.distributed import Client
 
 from . import common
 from . import bilp
@@ -16,12 +12,30 @@ from . import pruning
 #n=5
 #k=15
 
+def find_P_simple_parallel(D):
+    if D.shape[0] > 10:
+        raise "D cannot have more than 10 items for this method"
+    search = pyrankability.exact.ExhaustiveSearch(D.shape[0])
+    search.leave_out = 4
+    search.prepare_iterators()
+    search.find_P(D,2)
+    
+    return search.k,search.P
+
+def find_P_simple(D):
+    # TODO: need to implement a simple loop
+    pass
+
 class ExhaustiveSearch(common.Search):
-    def __init__(self,n):
+    def __init__(self,D,dask_connection_string="127.0.0.1:8786",leave_out = 4):
+        self.D = D
+        n = D.shape[0]
         self.n = n
+        self.dask_connection_string = dask_connection_string
         self.search_space_size = math.factorial(n)
         self.solution_size = n
         self.max_leave_out = self.solution_size - 1
+        self.leave_out = leave_out
     
     def print_solution_space_summary(self,leave_out):
         print('Total search space of the problem:',self.search_space_size)
@@ -104,19 +118,18 @@ class ExhaustiveSearch(common.Search):
         return int(k),P
                
     def get_find_P_parallel_func(self):
-        return lambda D,solutions_iter,entry: ExhaustiveSearch.find_P_parallel(D,solutions_iter,entry)
+        return lambda solutions_iter,entry: ExhaustiveSearch.find_P_parallel(self.D,solutions_iter,entry)
 
-    def find_P(self,D,num_parallel):
+    def find_P(self):
         """find_P finds the solutions to the rankability problem.
         """
+        self.prepare_iterators()
+
         opt_P = []
         opt_k = np.Inf
-        #values = [delayed(self.get_find_P_parallel_func())(D,solutions_iter,self.entries[i]) for i,solutions_iter in enumerate(self.solutions_iters)]
-        results = []
-        for i,solutions_iter in enumerate(self.solutions_iters):
-            results.append(self.get_find_P_parallel_func()(D,solutions_iter,self.entries[i]))
-        #results = compute(*values, get=dask.multiprocessing.get, num_workers=num_parallel)
-        #results = compute(*values, scheduler='single-threaded')#, num_workers=num_parallel)
+        client = Client(self.dask_connection_string)
+        futures = client.map(self.get_find_P_parallel_func(),self.solutions_iters,self.entries)
+        results = client.gather(futures)
         for k,P in results:
             if k < opt_k:
                 opt_P = []
