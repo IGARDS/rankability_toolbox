@@ -22,16 +22,18 @@ print = functools.partial(print, flush=True)
 def reindex(orig_inxs, order_inxs):
     return list(np.array(orig_inxs)[order_inxs])
 
-def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_search_space=100000, prune_history=False, uuid1=""):
+def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_search_space=100000, prune_history=False, uuid1="", verbose=False):
     def load_D():
         return np.genfromtxt(path_D, delimiter=",")
     orig_right_perm = list(range(load_D().shape[0]))
     bilp_res = bilp.bilp(load_D(),method=bilp_method)
     k_optimal = bilp_res[0]
-    print("k",k_optimal)
+    if verbose:
+        print("k",k_optimal)
     add_left_perms_grouped_file = "/dev/shm/add_left_perms_grouped"+uuid1+".joblib"
     add_left_perms_grouped_best_ks_file = "/dev/shm/add_left_perms_grouped_best_ks"+uuid1+".joblib"
-    print(add_left_perms_grouped_file,add_left_perms_grouped_best_ks_file)
+    if verbose:
+        print(add_left_perms_grouped_file,add_left_perms_grouped_best_ks_file)
         
     def _exhaustive_search(left_perm, search_perm, right_perm):
         all_search_perms = [list(perm) for perm in itertools.permutations(
@@ -204,8 +206,9 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
         for future in seq:
             if num_completed >= max_search_space:
                 break
-            print("Futures remaining:",seq.count())
-            print("Futures completed:",num_completed)
+            if verbose:
+                print("Futures remaining:",seq.count())
+                print("Futures completed:",num_completed)
             j = 0
             try:
                 for result_check, result_skipped, result_left_perm, result_add_left_perm, result_calc_k_left_perm, result_calc_k_right_perm in future.result():
@@ -220,7 +223,7 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
                                 # need to update Pnew at the right location
                                 if k == k_optimal:
                                     P.append(perm)
-                                else:
+                                elif k < k_optimal:
                                     raise Exception(
                                         "Error! The k value that you found was less than the optimal, which should never happen.")
                         else:
@@ -229,7 +232,8 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
                             for i, new_future in enumerate(new_futures):
                                 seq.add(new_future)
                     elif prune_history:
-                        print('pruned:',result_skipped)
+                        if verbose:
+                            print('pruned:',result_skipped)
                     j += 1
             except:
                 client.recreate_error_locally(future)

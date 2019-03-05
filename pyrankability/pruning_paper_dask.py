@@ -112,7 +112,8 @@ def find_P(path_D, o, t, bilp_test=False, prune_history=None, check_and_recurse=
                         k, Pnew = _exhaustive_search(result_left_perm + result_add_left_perm, result_right_perm, [])
                         if k == k_optimal:
                             P.extend(Pnew)
-                        else:
+                        elif k < k_optimal:
+                            print(k,k_optimal,Pnew)
                             raise Exception(
                                 "Error! The k value that you found was less than the optimal, which should never happen.")
                     else:

@@ -22,14 +22,15 @@ print = functools.partial(print, flush=True)
 def reindex(orig_inxs, order_inxs):
     return list(np.array(orig_inxs)[order_inxs])
 
-def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_search_space=np.Inf, prune_history=False, uuid1="",expand=True):
+def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_search_space=np.Inf, prune_history=False, uuid1=common.random_generator(),expand=True,verbose=False):
     def load_D():
         return np.genfromtxt(path_D, delimiter=",")
         
     orig_right_perm = list(range(load_D().shape[0]))
     bilp_res = bilp.bilp(load_D(),method=bilp_method)
     k_optimal = bilp_res[0]
-    print("k",k_optimal)
+    if verbose:
+        print("k",k_optimal)
     #n = len(orig_right_perm)
     a = 0.5
     b = -1.0
@@ -38,10 +39,12 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
     n_worst = (-b+math.sqrt(d))/(2*a)
     o = min([round(n_worst),len(orig_right_perm)])
     o = 4
-    print('setting o to',o)
+    if verbose:
+        print('setting o to',o)
 
     add_left_perms_grouped_file = "/dev/shm/add_left_perms_grouped"+uuid1+".joblib"
-    print(add_left_perms_grouped_file)
+    if verbose:
+        print(add_left_perms_grouped_file)
     
     def _no_left_calc_k(add_left_perms):
         D = load_D()
@@ -156,12 +159,15 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
         for i in range(0, num_add_left_perms, chunk_length):
             add_left_perms_chunks.append(itertools.islice(add_left_perms,i,i+chunk_length)) #l[i:i + n])
         #add_left_perms_chunks = common.chunks(add_left_perms,chunk_length)
-        print('mapping',len(add_left_perms_chunks))
+        if verbose:
+            print('mapping',len(add_left_perms_chunks))
         #_no_left_calc_k(add_left_perms_chunks[0])
         futures = client.map(_no_left_calc_k,add_left_perms_chunks)
-        print('gathering')
+        if verbose:
+            print('gathering')
         results = client.gather(futures)
-        print('done gathering')
+        if verbose:
+            print('done gathering')
         add_left_perms_grouped = []
         for chunk_add_left_perms_grouped in results:
             add_left_perms_grouped.extend(chunk_add_left_perms_grouped)
@@ -211,23 +217,20 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
         #import pdb; pdb.set_trace()
         #except:
         add_left_perms_grouped = _get_groups(D)
-        print('1')
         joblib.dump(add_left_perms_grouped,add_left_perms_grouped_file)
-        print(2)
         
         right_perm = add_left_perms_grouped # [(key) for key in add_left_perms_grouped.keys()]
-        print(3)
         P = []
         futures = _get_futures([],right_perm)
-        print(4)
         seq = as_completed(futures)
         num_completed = 0
         for future in seq:
             if num_completed >= max_search_space:
                 print('Reached maximum search space. Stopping.')
                 break
-            print("Futures remaining:",seq.count())
-            print("Futures completed:",num_completed)
+            if verbose:
+                print("Futures remaining:",seq.count())
+                print("Futures completed:",num_completed)
             j = 0
             try:
                 for result_check, result_skipped, result_left_perm, result_add_left_perm, result_calc_k_left_perm, result_calc_k_right_perm in future.result():
@@ -242,7 +245,7 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
                                 # need to update Pnew at the right location
                                 if k == k_optimal:
                                     P.append(perm)
-                                else:
+                                elif k < k_optimal:
                                     raise Exception(
                                         "Error! The k value that you found was less than the optimal, which should never happen.")
                         else:
@@ -252,7 +255,8 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
                             for i, new_future in enumerate(new_futures):
                                 seq.add(new_future)
                     elif prune_history:
-                        print('pruned prefix:',result_left_perm+result_add_left_perm)
+                        if verbose:
+                            print('pruned prefix:',result_left_perm+result_add_left_perm)
                     j += 1
             except:
                 client.recreate_error_locally(future)
@@ -303,7 +307,8 @@ def find_P(path_D, o, t, bilp_test=False, bilp_method="mos2", client=None, max_s
         if chunk_length == 0:
             chunk_length = len(P)
         perms_chunks = common.chunks(P,chunk_length)
-        print('Finding final numbers')
+        if verbose:
+            print('Finding final numbers')
         futures = client.map(_find_numbers,perms_chunks)
         results = client.gather(futures)
         numbers = []

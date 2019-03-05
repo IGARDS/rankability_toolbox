@@ -2,8 +2,13 @@ import math
 import numpy as np
 import json
 import sys
+import string
+import random
 
 np.set_printoptions(threshold=sys.maxsize)
+
+def random_generator(size=6, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for x in range(size))
 
 def nCr(n,r):
     f = math.factorial
