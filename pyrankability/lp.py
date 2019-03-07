@@ -7,10 +7,7 @@ Created on Mar 25
 """
 
 import numpy as np
-try:
-  from gurobipy import *
-except:
-  pass
+from gurobipy import *
 import itertools
 
 from .common import *
@@ -96,10 +93,10 @@ def _run(D,model,get_sol_x_func,get_sol_y_func,max_solutions,obj2k_func=lambda o
     k2 = int(np.count_nonzero(get_sol_x_func())) + int(np.count_nonzero(get_sol_y_func()))
     
     if max_solutions == None:
-        return k,[], get_sol_x_func(), get_sol_y_func(), k2
-    
-    P = _get_P(D,model,get_sol_x_func,get_sol_y_func)
-    return k, P
+        P = []
+    else:
+        P = _get_P(D,model,get_sol_x_func,get_sol_y_func)
+    return k, P, get_sol_x_func(), get_sol_y_func(), k2
 
 def round_Xn(Xn,mult=10):
     return Xn #round(mult*Xn)*1./mult
