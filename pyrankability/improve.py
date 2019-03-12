@@ -46,7 +46,7 @@ def greedy(D,l,verbose=False):
         # PAUL: Or if we only want to do link addition, you don't need to form
         # Mdelete and find the largest non-unit value in it. And vice versa, if
         # only link removal is desired, don't form Madd.
-        if (1-minMadd)>maxMdelete:
+        if (1-minMadd)>=maxMdelete:
             Dtilde[bestlinktoadd_i,bestlinktoadd_j]=1 # adds this link, creating one-mod Dtilde
             formatSpec = 'The best one-link way to improve rankability is by adding a link from %d to %d.\nThis one modification removes about %.10f percent of the rankings in P.'%(bestlinktoadd_i,bestlinktoadd_j,(1-minMadd)*100)
             if verbose:
