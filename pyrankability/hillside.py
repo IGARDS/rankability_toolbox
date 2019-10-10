@@ -33,7 +33,12 @@ def objective_count(C,Xstar):
     min_value = np.Inf
     Xsub_min_value = []
     frac_ixs_min_value = []
+    max_trials = np.Inf
+    c = 0
     for seq in itertools.product([0.,1.], repeat=len(frac_ixs[0])):
+        if c > max_trials:
+            break
+        c+=1
         Xsub = copy.copy(Xstar)
         Xsub[frac_ixs] = seq
         Xsub[(frac_ixs[1],frac_ixs[0])] = 1.-np.array(seq)
@@ -167,8 +172,8 @@ def count(D,obj2k_func=lambda obj: round(obj)):
 
 
 def count_lp(D,obj2k_func=lambda obj: int(obj)):
-    n = len(D[0])
-    m = int(np.sum(D))
+    n = D.shape[0]#len(D[0])
+    #m = int(np.sum(D))
    
     c = compute_C(D)
 
@@ -235,11 +240,10 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
     def get_sol_x_by_x(x,n):
         return lambda: np.reshape([x[i,j].X for i in range(n) for j in range(n)],(n,n))
     details = {"x": get_sol_x_by_x(x,n)(),"c":c,"model": AP}
-    
     n = details['x'].shape[0]
     r = np.sum(details['x'],axis=1)
     ixs = np.argsort(-1*r)
-    mult = 10000
+    mult = 1e10
     Xstar_rounded = np.round(mult*details['x'][np.ix_(ixs,ixs)])/mult
     Xstar = details['x'][np.ix_(ixs,ixs)]
     C = details['c'][np.ix_(ixs,ixs)]
@@ -254,6 +258,7 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
     #print(start_arrow0,start_arrow1,end_arrow0,end_arrow1)
     for i in range(1,n-1):
         fixed_positions[i] = np.array_equal(np.ones(i,),Xstar_rounded[:i,i]) and np.array_equal(np.zeros(n-i-1,),Xstar_rounded[np.arange(i+1,n),i])
+    print(fixed_positions)
     # construct groups
     groups = []
     is_variable = []
@@ -299,7 +304,7 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
     new_P = []
     for perm in details["P"]:
         obj = objective_count_perm(D,perm)
-        if obj == k+1: #remove and figure out +1
+        if obj == k+1:# or (k == 0 and obj == 0): #remove and figure out +1
             new_P.append(list(perm))
     details["P"] = new_P
-    return k, details
+    return k+1, details # TODO: why k + 1?
