@@ -5,7 +5,7 @@ import math
 import tempfile
 from dask import delayed
 from dask.distributed import as_completed
-from sklearn.externals import joblib
+import joblib
 import copy
 import uuid
 import os

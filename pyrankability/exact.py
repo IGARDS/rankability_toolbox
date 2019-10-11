@@ -1,6 +1,6 @@
 import itertools
 import numpy as np
-from scipy.misc import comb
+from scipy.special import comb
 import math
 
 from dask.distributed import Client

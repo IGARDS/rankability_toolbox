@@ -105,9 +105,8 @@ def compute_C(D):
            
     return c
 
-def count(D,obj2k_func=lambda obj: round(obj)):
-    n = len(D[0])
-    m = int(np.sum(D))
+def _count(D):
+    n = D.shape[0]
    
     c = compute_C(D)
 
@@ -132,7 +131,7 @@ def count(D,obj2k_func=lambda obj: round(obj)):
     AP._constraints = []
    
     AP.update()
-    AP.setObjective(quicksum(-c[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MINIMIZE)
+    AP.setObjective(quicksum(c[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MINIMIZE)
     AP.update()
    
     I = []
@@ -162,13 +161,74 @@ def count(D,obj2k_func=lambda obj: round(obj)):
                        
     AP.params.LazyConstraints = 1
     AP.update()
-    AP.optimize(sublim)
+    return AP
 
-    k=obj2k_func(AP.objVal)
-               
-    details = {"x": get_sol_x_by_x(x,n)(),"c":c,"model": AP}
-   
+def count(D,max_solutions=None,iterations=1):
+    k,details = _run(D,max_solutions=max_solutions,iterations=iterations)
+                  
     return k, details
+
+def _run(D_orig,model_func=_count,iterations=1,max_solutions=None,obj2k_func=lambda obj: int(obj)):
+    def get_sol_x_by_x(x,n):
+        return lambda: np.reshape([x[i,j].X for i in range(n) for j in range(n)],(n,n))
+
+    P = {}
+    prev_size_P = 0
+    for iteration in range(iterations):
+        perm_inxs = np.random.permutation(range(D_orig.shape[0]))
+        D = permute_D(D_orig,perm_inxs)
+        print("Iteration",iteration+1)
+        model = model_func(D)
+        # Limit how many solutions to collect
+        if max_solutions != None:
+            model.setParam(GRB.Param.PoolSolutions, max_solutions)
+            # Limit the search space by setting a gap for the worst possible solution that will be accepted
+            model.setParam(GRB.Param.PoolGap, .5)
+            # do a systematic search for the k-best solutions
+            if max_solutions != None:
+                model.setParam(GRB.Param.PoolSearchMode, 2)
+            model.update()
+
+        model.optimize()
+
+        k=obj2k_func(model.objVal)
+
+        if max_solutions == None:
+            details = {"P":[]}
+            return k,details
+
+        for perm in _get_P(D,model,get_sol_x_by_x):
+            P[tuple(perm_inxs[perm])] = True
+        print("Number of new solutions",len(P.keys())-prev_size_P)
+        prev_size_P = len(P.keys())
+    details = {"P":list(P.keys())}
+    return k, details
+    
+def _get_P(D,model,get_sol_x_func):
+    # Print number of solutions stored
+    nSolutions = model.SolCount
+
+    # Print objective values of solutions and create a list of those that have the same objective value as the optimal
+    alternative_solutions = []
+    for e in range(nSolutions):
+        model.setParam(GRB.Param.SolutionNumber, e)
+        if model.PoolObjVal == model.objVal:
+            alternative_solutions.append(e)
+    
+    # print all alternative solutions
+    P = {}
+    for e in alternative_solutions:
+        model.setParam(GRB.Param.SolutionNumber, e)
+        sol_x = get_sol_x_func(model._x,D.shape[0])()
+        r = np.sum(sol_x,axis=0)
+        ranking = np.argsort(-1*r)
+        #rowsum=np.sum(D+sol_x,axis=0)
+        #ranking=np.argsort(rowsum)+1
+        key = tuple([int(item) for item in ranking])
+        if key not in P:
+            P[key] = True
+    P = [list(perm) for perm in P.keys()]
+    return P
 
 
 def count_lp(D,obj2k_func=lambda obj: int(obj)):
