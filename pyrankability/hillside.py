@@ -19,7 +19,9 @@ def generate_perms(perm_iters):
                 perms.append(new_perm)
     return perms
 
-def objective_count(C,Xstar):
+def objective_count(D,C,Xstar):
+    k,details = count(D,max_solutions=1)
+    import pdb; pdb.set_trace()
     frac_ixs = np.where((Xstar < 1) & (Xstar > 0))
     if len(frac_ixs[0]) == 0:
         return sum(sum(Xstar*C)), [list(range(C.shape[0]))]
@@ -34,6 +36,62 @@ def objective_count(C,Xstar):
     Xsub_min_value = []
     frac_ixs_min_value = []
     max_trials = np.Inf
+    
+    def ga_objective(seq):
+        Xsub = copy.copy(Xstar)
+        Xsub[frac_ixs] = seq
+        Xsub[(frac_ixs[1],frac_ixs[0])] = 1.-np.array(seq)
+        return -1*sum(sum(Xsub*C)),
+    
+    import random
+
+    from deap import base
+    from deap import creator
+    from deap import tools
+    from deap import algorithms
+    
+    creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMax)
+    
+    toolbox = base.Toolbox()
+    # Attribute generator 
+    toolbox.register("attr_bool", random.randint, 0, 1)
+    # Structure initializers
+    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, len(frac_ixs[0]))
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+    
+    toolbox.register("evaluate", ga_objective)
+    toolbox.register("mate", tools.cxTwoPoint)
+    toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
+    toolbox.register("select", tools.selTournament, tournsize=2)
+
+    stats = tools.Statistics(lambda ind: ind.fitness.values)
+    stats.register("avg", np.mean)
+    stats.register("std", np.std)
+    stats.register("min", np.min)
+    stats.register("max", np.max)
+    
+    def initIndividual(icls, content):
+        return icls(content)
+
+    def initPopulation(pcls, ind_init, filename):
+        with open(filename, "r") as pop_file:
+            contents = json.load(pop_file)
+        return pcls(ind_init(c) for c in contents)
+
+    toolbox = base.Toolbox()
+
+    toolbox.register("individual_guess", initIndividual, creator.Individual)
+    toolbox.register("population_guess", initPopulation, list, toolbox.individual_guess, "my_guess.json")
+
+    pop = toolbox.population_guess()
+    
+    #pop = toolbox.population(n=1000)
+    
+    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=0.5, mutpb=0.2, ngen=500, 
+                                   stats=stats, verbose=True)
+    import pdb; pdb.set_trace()
+            
     c = 0
     for seq in itertools.product([0.,1.], repeat=len(frac_ixs[0])):
         if c > max_trials:
@@ -50,6 +108,7 @@ def objective_count(C,Xstar):
         elif obj == min_value:
             Xsub_min_value.append(Xsub)
             frac_ixs_min_value.append(frac_ixs)
+            
     permutations = []
     for i,Xsub in enumerate(Xsub_min_value):
         r = np.round(np.sum(Xsub,axis=1)*1000)/1000
@@ -161,7 +220,8 @@ def _count(D):
                        
     AP.params.LazyConstraints = 1
     AP.update()
-    return AP
+        
+    return AP,sublim
 
 def count(D,max_solutions=None,iterations=1):
     k,details = _run(D,max_solutions=max_solutions,iterations=iterations)
@@ -178,22 +238,21 @@ def _run(D_orig,model_func=_count,iterations=1,max_solutions=None,obj2k_func=lam
         perm_inxs = np.random.permutation(range(D_orig.shape[0]))
         D = permute_D(D_orig,perm_inxs)
         print("Iteration",iteration+1)
-        model = model_func(D)
+        model,sublim = model_func(D)
         # Limit how many solutions to collect
-        if max_solutions != None:
+        if max_solutions is not None:
             model.setParam(GRB.Param.PoolSolutions, max_solutions)
             # Limit the search space by setting a gap for the worst possible solution that will be accepted
             model.setParam(GRB.Param.PoolGap, .5)
             # do a systematic search for the k-best solutions
-            if max_solutions != None:
-                model.setParam(GRB.Param.PoolSearchMode, 2)
+            model.setParam(GRB.Param.PoolSearchMode, 2)
             model.update()
 
-        model.optimize()
+        model.optimize(sublim)
 
         k=obj2k_func(model.objVal)
 
-        if max_solutions == None:
+        if max_solutions is None:
             details = {"P":[]}
             return k,details
 
@@ -215,7 +274,7 @@ def _get_P(D,model,get_sol_x_func):
         if model.PoolObjVal == model.objVal:
             alternative_solutions.append(e)
     
-    # print all alternative solutions
+    # get all alternative solutions
     P = {}
     for e in alternative_solutions:
         model.setParam(GRB.Param.SolutionNumber, e)
@@ -267,8 +326,8 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
             for k in range(n):
                 if j != i and k != j and k != i:
                     idx = (i,j,k)
-                    AP.addConstr(AP._x[idx[0],idx[1]] + AP._x[idx[1],idx[2]] + AP._x[idx[2],idx[0]] <= 2)
-                    #I.append((i,j,k))
+                    #AP.addConstr(AP._x[idx[0],idx[1]] + AP._x[idx[1],idx[2]] + AP._x[idx[2],idx[0]] <= 2).setAttr(GRB.Attr.Lazy,2)
+                    I.append((i,j,k))
        
     def sublim(model, where):
         if where == GRB.callback.MIPSOL:
@@ -288,25 +347,30 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
                     model.cbLazy(model._x[idx[0],idx[1]] + model._x[idx[1],idx[2]] + model._x[idx[2],idx[0]] <= 2)
                     model._constraints.append(idx)
                        
-    #AP.params.LazyConstraints = 1
+    AP.params.LazyConstraints = 1
     AP.Params.Method = 2
     AP.Params.Crossover = 0    
     AP.update()
-    AP.optimize()
-    #AP.optimize(sublim)
+    #AP.optimize()
+    AP.optimize(sublim)
 
-    k=obj2k_func(AP.objVal)
-               
     def get_sol_x_by_x(x,n):
         return lambda: np.reshape([x[i,j].X for i in range(n) for j in range(n)],(n,n))
-    details = {"x": get_sol_x_by_x(x,n)(),"c":c,"model": AP}
+    details = {"P":[],"x": get_sol_x_by_x(x,n)(),"c":c,"model": AP}
+    k=obj2k_func(AP.objVal)
+    
+    return k,details
+
+def find_P_from_x(details):
+                   
     n = details['x'].shape[0]
     r = np.sum(details['x'],axis=1)
     ixs = np.argsort(-1*r)
     mult = 1e10
-    Xstar_rounded = np.round(mult*details['x'][np.ix_(ixs,ixs)])/mult
     Xstar = details['x'][np.ix_(ixs,ixs)]
+    Xstar_rounded = np.round(mult*Xstar)/mult
     C = details['c'][np.ix_(ixs,ixs)]
+    Dordered = D[np.ix_(ixs,ixs)]
     Xstar[range(n),range(n)] = 0
     # for loop to look for binary cross and then try to extend it
     n = Xstar.shape[0]
@@ -355,7 +419,7 @@ def count_lp(D,obj2k_func=lambda obj: int(obj)):
         else:
             Xsub = Xstar[np.ix_(group,group)]
             Csub = C[np.ix_(group,group)]
-            obj_sub, permutations_sub = objective_count(Csub,Xsub)
+            obj_sub, permutations_sub = objective_count(Dordered[np.ix_(group,group)],Csub,Xsub)
             perm_iters.append((group[0],permutations_sub))
     permutations = generate_perms(perm_iters)
     details["P"] = [list(np.array(ixs)[perm])[::-1] for perm in permutations]
