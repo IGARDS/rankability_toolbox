@@ -1,5 +1,5 @@
 # Rankability Toolbox
-This repo contains various implementations that provide insights into the rankability of data.
+This repo contains various implementations that provide insights into the rankability of data and the linear ordering problem.
 
 ## Authors
 Paul Anderson, Ph.D.<br>
@@ -12,6 +12,10 @@ Department of Mathematics<br>
 College of Charleston<br>
 
 Tim Chartier, Ph.D.<br>
+Department of Mathematics<br>
+Davidson College
+
+Thomas Cameron, Ph.D.<br>
 Department of Mathematics<br>
 Davidson College
 
