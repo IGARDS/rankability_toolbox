@@ -174,7 +174,9 @@ def lp(D,relaxation_method=None,level=2):
     AP.update()
     AP.setObjective(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MAXIMIZE)
     AP.update()
-       
+    
+    #orig = copy.deepcopy(AP)
+   
     I = []
     values = set()
     for i,j in x.keys():
@@ -209,10 +211,6 @@ def lp(D,relaxation_method=None,level=2):
         
     return k,details
 
-"""
-Code below here needs checking out more so
-"""
-
 def generate_perms(perm_iters):
     if len(perm_iters) == 0:
         return [[]]
@@ -225,6 +223,19 @@ def generate_perms(perm_iters):
             if len(new_perm) > 0:
                 perms.append(new_perm)
     return perms
+
+def threshold_x(x,lower_cut=1e-3,upper_cut=1-1e-3):
+    x = x.copy()
+    cut_ixs = np.where(x < lower_cut)
+    x[cut_ixs] = 0.
+    cut_ixs = np.where(x > upper_cut)
+    x[cut_ixs] = 1.
+    return x
+
+def compare_objective_values(o1,o2,tol=1**-6):
+    if abs(o1-o2) <= tol:
+        return True
+    return False
 
 def find_P_from_x(D,k,details,lower_cut=1e-3,upper_cut=1-1e-3):
     n = details['x'].shape[0]

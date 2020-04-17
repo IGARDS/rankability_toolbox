@@ -7,20 +7,6 @@ import random
 
 np.set_printoptions(threshold=sys.maxsize)
 
-
-def threshold_x(x,lower_cut=1e-3,upper_cut=1-1e-3):
-    x = x.copy()
-    cut_ixs = np.where(x < lower_cut)
-    x[cut_ixs] = 0.
-    cut_ixs = np.where(x > upper_cut)
-    x[cut_ixs] = 1.
-    return x
-
-def compare_objective_values(o1,o2,tol=1**-6):
-    if abs(o1-o2) <= tol:
-        return True
-    return False
-
 def random_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for x in range(size))
 
@@ -30,7 +16,8 @@ def round_Xn(Xn,mult=10):
 def nCr(n,r):
     f = math.factorial
     return f(n) // f(r) // f(n-r)
-
+    #return comb(n,r)
+    
 def nPr(n,r):
     f = math.factorial
     return f(n) // f(n-r)
@@ -74,7 +61,7 @@ def chunks(l, n):
 def chunks_generator(l,n):
     for i in range(0, len(l), n):
         yield l[i:i + n]
-
+        
 def as_json(k,P,other={},p=None):
     if len(P) > 0 and np.min(P) == 0:
         P = (np.array(P,dtype=int)+1).tolist()
@@ -105,8 +92,8 @@ def json_string(k,P,other={},p=None):
     instance_as_string += indent + json.dumps({"other": other})[1:-1]+"\n"
     instance_as_string += "}"
     return instance_as_string
-
-
+    
+        
 class Search:
     def to_json(self):
         solution = {}
@@ -119,4 +106,4 @@ class Search:
     # Override this if the search subclass does not keep track of thse things
     def other_to_dict(self):
         return {"skipped": self.skipped, "searched": self.searched, "exact_solution_found": self.exact_solution_found}
-
+        

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import itertools
 import copy
 import multiprocessing
@@ -365,7 +364,7 @@ def _run(D_orig,c=None,model_func=_count,iterations=1,max_solutions=None,obj2k_f
         prev_size_P = len(P.keys())
     details = {"P":list(P.keys()),"x":get_sol_x_by_x(model._x,D.shape[0])()}
     return k, details
-
+    
 def _get_P(D,model,get_sol_x_func):
     # Print number of solutions stored
     nSolutions = model.SolCount
