@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 
 from .common import *
 
-def bilp(D_orig,max_solutions=None,num_random_restarts=0):
+def bilp(D_orig,max_solutions=None,num_random_restarts=0,lazy=False):
     n = D_orig.shape[0]
     
     temp_dir = tempfile.mkdtemp()
@@ -52,7 +52,7 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0):
                     if j!=i:
                         AP.addConstr(x[i,j] + x[j,i] == 1)
                     else:
-                        AP.addConstr(x[j,i] == 0)
+                        AP.addConstr(x[i,i] == 0)
 
             AP.update()
             I = []
@@ -60,8 +60,11 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0):
                 for j in range(n):
                     for k in range(n):
                         if j != i and k != j and k != i:
-                            idx = (i,j,k)                    
-                            AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2)
+                            idx = (i,j,k)           
+                            if lazy:
+                                AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2).setAttr(GRB.Attr.Lazy,1)
+                            else:
+                                AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2)
 
             if max_solutions is not None and max_solutions > 1:
                 AP.setParam(GRB.Param.PoolSolutions, max_solutions)
@@ -118,7 +121,7 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0):
         Pfinal.extend(P)
         objs.append(k)
     
-    details = {"Pfirst": Pfirst, "P":Pfinal,"x": xfirst,"objs":objs,"xs":xs}
+    details = {"Pfirst": Pfirst, "P":list(set(Pfinal)),"x": xfirst,"objs":objs,"xs":xs}
     
     shutil.rmtree(temp_dir)
         
