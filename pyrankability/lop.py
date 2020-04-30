@@ -13,6 +13,93 @@ from joblib import Parallel, delayed
 
 from .common import *
 
+def bilp_two_most_distant(D,lazy=False,verbose=False):
+    first_k, first_details = bilp(D,lazy=lazy,verbose=verbose)
+    
+    n = D.shape[0]
+        
+    AP = Model('lop')
+
+    x = {}
+    y = {}
+    for i in range(n):
+        for j in range(n):
+            x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
+            y[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="y(%s,%s)"%(i,j)) #binary
+
+    AP.update()
+
+    for i in range(n):
+        AP.addConstr(x[i,i] == 0)
+        AP.addConstr(y[i,i] == 0)
+    AP.update()
+    
+    for i in range(n):
+        for j in range(i+1,n):
+            for k in range(j+1,n):
+                trans_cons = []
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] <= 1))
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] >= 0))
+                trans_cons.append(AP.addConstr(y[i,j] + y[j,k] - y[i,k] <= 1))
+                trans_cons.append(AP.addConstr(y[i,j] + y[j,k] - y[i,k] >= 0))
+                if lazy:
+                    for cons in trans_cons:
+                        cons.setAttr(GRB.Attr.Lazy,1)
+    AP.update()
+    AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)) == first_k)
+    AP.addConstr(quicksum(D[i,j]*y[i,j] for i in range(n) for j in range(n)) == first_k)
+            
+    u={}
+    v={}
+    b={}
+    for i in range(n):
+        for j in range(i+1,n):
+            u[i,j] = AP.addVar(name="u(%s,%s)"%(i,j),lb=0)
+            v[i,j] = AP.addVar(name="v(%s,%s)"%(i,j),lb=0)
+            b[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j))
+    AP.update()
+    for i in range(n):
+        for j in range(i+1,n):
+            AP.addConstr(u[i,j] - v[i,j] == x[i,j] - y[i,j])
+            AP.addConstr(u[i,j] <= b[i,j])
+            AP.addConstr(v[i,j] <= 1 - b[i,j])
+    AP.update()
+
+    #AP.setObjective(quicksum(u[i,j]-v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+    AP.setObjective(quicksum(u[i,j]+v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+    #AP.setParam( 'OutputFlag', False )
+    AP.update()
+        
+    if verbose:
+        print('Start optimization')
+    tic = time.perf_counter()
+    AP.setParam( 'OutputFlag', False )
+    AP.update()
+    AP.optimize()
+    toc = time.perf_counter()
+    if verbose:
+        print(f"Optimization in {toc - tic:0.4f} seconds")
+        print('End optimization')
+            
+    P = []
+    sol_x = get_sol_x_by_x(x,n)()
+    sol_y = get_sol_x_by_x(y,n)()
+    r = np.sum(sol_x,axis=0)
+    ranking = np.argsort(r)
+    perm_x = tuple([int(item) for item in ranking])
+    
+    r = np.sum(sol_y,axis=0)
+    ranking = np.argsort(r)
+    perm_y = tuple([int(item) for item in ranking])
+    
+    k_x = np.sum(np.sum(D*sol_x))
+    k_y = np.sum(np.sum(D*sol_y))
+    
+    details = {"k_x": k_x, "k_y":k_y,"x": sol_x,"y":sol_y,"perm_x":perm_x,"perm_y":perm_y}
+            
+    return first_k,details
+    
+
 def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
     n = D_orig.shape[0]
     
