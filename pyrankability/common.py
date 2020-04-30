@@ -7,6 +7,17 @@ import random
 
 np.set_printoptions(threshold=sys.maxsize)
 
+def get_sol_x_by_x(x,n):
+    def myfunc():
+        values = []
+        for i in range(n):
+            for j in range(n):
+                if (i,j) not in x:
+                    values.append(np.NaN)
+                else:
+                    values.append(int(x[i,j].X))
+        return np.reshape(values,(n,n))
+    return myfunc
 
 def threshold_x(x,lower_cut=1e-3,upper_cut=1-1e-3):
     x = x.copy()

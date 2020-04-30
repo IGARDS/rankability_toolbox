@@ -13,18 +13,6 @@ from joblib import Parallel, delayed
 
 from .common import *
 
-def get_sol_x_by_x(x,n):
-    def myfunc():
-        values = []
-        for i in range(n):
-            for j in range(n):
-                if (i,j) not in x:
-                    values.append(np.NaN)
-                else:
-                    values.append(int(x[i,j].X))
-        return np.reshape(values,(n,n))
-    return myfunc
-
 def compute_C(D):
     c = np.zeros(D.shape)
     for i in range(D.shape[0]):
@@ -47,6 +35,7 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
     pair_Pfinal = []
     pair_objs = []
     pair_xs = []
+    first_k = None
     
     for ix in range(num_random_restarts+1):
         if ix > 0:
@@ -94,9 +83,11 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
 
             AP.update()
             AP.write(model_file)
-        
+            
         tic = time.perf_counter()
         c = compute_C(D)
+        if first_k is not None:
+            AP.addConstr(quicksum(c[i,j]*x[i,j] for i in range(n) for j in range(n))==first_k)
         AP.setObjective(quicksum(c[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MINIMIZE)
         AP.setParam( 'OutputFlag', False )
         AP.update()
@@ -114,6 +105,8 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
             print('End optimization %d'%ix)
 
         k=int(AP.objVal)
+        if first_k is None:
+            first_k = k
 
         P = []
         sol_x = get_sol_x_by_x(x,n)()
@@ -158,7 +151,7 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
             
             #AP.setObjective(quicksum(u[i,j]-v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
             AP.setObjective(quicksum(u[i,j]+v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
-            #AP.setParam( 'OutputFlag', False )
+            AP.setParam( 'OutputFlag', False )
             AP.update()
             
             if verbose:
@@ -175,9 +168,7 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
             P = []
             sol_x = get_sol_x_by_x(x,n)()
             sol_u = get_sol_x_by_x(u,n)()
-            print(sol_u)
             sol_v = get_sol_x_by_x(v,n)()
-            print(sol_v)
             r = np.sum(sol_x,axis=0)
             ranking = np.argsort(r)
             key = tuple([int(item) for item in ranking])
@@ -194,10 +185,10 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
             pair_Pfinal.extend(P)
             pair_objs.append(k)
     
-    details = {"Pfirst": Pfirst, "P":list(set(Pfinal)),"x": xfirst,"objs":objs,"xs":xs}
+    details = {"Pfirst": Pfirst, "P":Pfinal,"x": xfirst,"objs":objs,"xs":xs}
     pair_details = None
     if find_pair:
-        pair_details = {"Pfirst": pair_Pfirst, "P":list(set(pair_Pfinal)),"x": pair_xfirst,"objs":pair_objs,"xs":pair_xs}
+        pair_details = {"Pfirst": pair_Pfirst, "P":pair_Pfinal,"x": pair_xfirst,"objs":pair_objs,"xs":pair_xs}
     details["pair_details"] = pair_details
     
     shutil.rmtree(temp_dir)

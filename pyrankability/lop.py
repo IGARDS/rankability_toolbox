@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 
 from .common import *
 
-def bilp(D_orig,max_solutions=None,num_random_restarts=0,lazy=False):
+def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
     n = D_orig.shape[0]
     
     temp_dir = tempfile.mkdtemp()
@@ -22,6 +22,11 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0,lazy=False):
     Pfinal = []
     objs = []
     xs = []
+    pair_Pfirst = []
+    pair_Pfinal = []
+    pair_objs = []
+    pair_xs = []
+    first_k = None
     for ix in range(num_random_restarts+1):
         if ix > 0:
             perm_inxs = np.random.permutation(range(D_orig.shape[0]))
@@ -66,53 +71,41 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0,lazy=False):
                             else:
                                 AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2)
 
-            if max_solutions is not None and max_solutions > 1:
-                AP.setParam(GRB.Param.PoolSolutions, max_solutions)
-                # Limit the search space by setting a gap for the worst possible solution that will be accepted
-                AP.setParam(GRB.Param.PoolGap, .5)
-                # do a systematic search for the k-best solutions
-                AP.setParam(GRB.Param.PoolSearchMode, 2)
             AP.update()
             AP.write(model_file)
+        if first_k is not None:
+            AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)) == first_k)
         
         tic = time.perf_counter()
         AP.setObjective(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MAXIMIZE)
         AP.setParam( 'OutputFlag', False )
         AP.update()
         toc = time.perf_counter()
-        print(f"Updating opjective in {toc - tic:0.4f} seconds")
+        if verbose:
+            print(f"Updating opjective in {toc - tic:0.4f} seconds")
         
-        print('Start optimization %d'%ix)
+        if verbose:
+            print('Start optimization %d'%ix)
         tic = time.perf_counter()
         AP.optimize()
         toc = time.perf_counter()
-        print(f"Optimization in {toc - tic:0.4f} seconds")
-        print('End optimization %d'%ix)
+        if verbose:
+            print(f"Optimization in {toc - tic:0.4f} seconds")
+            print('End optimization %d'%ix)
 
-        def get_sol_x_by_x(x,n):
-            def myfunc():
-                values = []
-                for i in range(n):
-                    for j in range(n):
-                        values.append(int(x[i,j].X))
-                return np.reshape(values,(n,n))
-            return myfunc
         k=AP.objVal
-
+        if first_k is None:
+            first_k = k
+            
         P = []
-        if max_solutions is not None and max_solutions > 1:
-            print('Running pool search')
-            for perm in _get_P(D,AP,get_sol_x_by_x):
-                P.append(tuple(perm_inxs[np.array(perm)]))
-        elif max_solutions is not None and max_solutions == 1:
-            sol_x = get_sol_x_by_x(x,n)()
-            r = np.sum(sol_x,axis=0)
-            ranking = np.argsort(r)
-            key = tuple([int(item) for item in ranking])
-            perm = tuple(perm_inxs[np.array(key)])
-            P.append(perm)
-            reorder = np.argsort(perm_inxs)
-            xs.append(sol_x[np.ix_(reorder,reorder)])
+        sol_x = get_sol_x_by_x(x,n)()
+        r = np.sum(sol_x,axis=0)
+        ranking = np.argsort(r)
+        key = tuple([int(item) for item in ranking])
+        perm = tuple(perm_inxs[np.array(key)])
+        P.append(perm)
+        reorder = np.argsort(perm_inxs)
+        xs.append(sol_x[np.ix_(reorder,reorder)])
         
         if ix == 0:
             Pfirst = P
@@ -121,7 +114,69 @@ def bilp(D_orig,max_solutions=None,num_random_restarts=0,lazy=False):
         Pfinal.extend(P)
         objs.append(k)
     
-    details = {"Pfirst": Pfirst, "P":list(set(Pfinal)),"x": xfirst,"objs":objs,"xs":xs}
+        if find_pair:
+            AP = read(model_file)
+            x = {}
+            for i in range(n):
+                for j in range(n):
+                    x[i,j] = AP.getVarByName("x(%s,%s)"%(i,j))
+            AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n))==k)
+            AP.update()
+            u={}
+            v={}
+            b={}
+            for i in range(n):
+                for j in range(i+1,n):
+                    u[i,j] = AP.addVar(name="u(%s,%s)"%(i,j),lb=0)
+                    v[i,j] = AP.addVar(name="v(%s,%s)"%(i,j),lb=0)
+                    b[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j))
+            AP.update()
+            for i in range(n):
+                for j in range(i+1,n):
+                    AP.addConstr(u[i,j] - v[i,j] == x[i,j] - sol_x[i,j])
+                    AP.addConstr(u[i,j] >= b[i,j])
+                    AP.addConstr(v[i,j] <= 1 - b[i,j])
+            AP.update()
+            
+            #AP.setObjective(quicksum(u[i,j]-v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+            AP.setObjective(quicksum(u[i,j]+v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+            AP.setParam( 'OutputFlag', False )
+            AP.update()
+            
+            if verbose:
+                print('Start pair optimization %d'%ix)
+            tic = time.perf_counter()
+            AP.optimize()
+            toc = time.perf_counter()
+            if verbose:
+                print(f"Optimization in {toc - tic:0.4f} seconds")
+                print('End optimization %d'%ix)
+            
+            P = []
+            sol_x = get_sol_x_by_x(x,n)()
+            sol_u = get_sol_x_by_x(u,n)()
+            sol_v = get_sol_x_by_x(v,n)()
+            r = np.sum(sol_x,axis=0)
+            ranking = np.argsort(r)
+            key = tuple([int(item) for item in ranking])
+            perm = tuple(perm_inxs[np.array(key)])
+            P.append(perm)
+            reorder = np.argsort(perm_inxs)
+            pair_xs.append(sol_x[np.ix_(reorder,reorder)])
+            k = np.sum(np.sum(D*sol_x))
+
+            if ix == 0:
+                pair_Pfirst = P
+                pair_xfirst = get_sol_x_by_x(x,n)() 
+            
+            pair_Pfinal.extend(P)
+            pair_objs.append(k)
+    
+    details = {"Pfirst": Pfirst, "P":Pfinal,"x": xfirst,"objs":objs,"xs":xs}
+    pair_details = None
+    if find_pair:
+        pair_details = {"Pfirst": pair_Pfirst, "P":pair_Pfinal,"x": pair_xfirst,"objs":pair_objs,"xs":pair_xs}
+    details["pair_details"] = pair_details
     
     shutil.rmtree(temp_dir)
         
