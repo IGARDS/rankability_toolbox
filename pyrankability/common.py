@@ -12,10 +12,32 @@ def get_sol_x_by_x(x,n):
         values = []
         for i in range(n):
             for j in range(n):
-                if (i,j) not in x:
-                    values.append(np.NaN)
-                else:
+                if (i,j) in x:
                     values.append(int(x[i,j].X))
+                else:
+                    if i==j:
+                        values.append(0)
+                    elif i < j:
+                        values.append(int(x[i,j].X))
+                    else:
+                        values.append(int(1-x[j,i].X))
+        return np.reshape(values,(n,n))
+    return myfunc
+
+def get_sol_uv_by_x(x,n):
+    def myfunc():
+        values = []
+        for i in range(n):
+            for j in range(n):
+                if (i,j) in x:
+                    values.append(int(x[i,j].X))
+                else:
+                    if i==j:
+                        values.append(0)
+                    elif i < j:
+                        values.append(int(x[i,j].X))
+                    else:
+                        values.append(0)
         return np.reshape(values,(n,n))
     return myfunc
 

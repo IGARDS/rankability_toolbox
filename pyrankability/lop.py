@@ -13,8 +13,12 @@ from joblib import Parallel, delayed
 
 from .common import *
 
-def bilp_two_most_distant(D,lazy=False,verbose=False):
+
+
+###
+def lop_simplifiedmodel(D,lazy=False,verbose=False):
     first_k, first_details = bilp(D,lazy=lazy,verbose=verbose)
+    print(first_details['P'])
     
     n = D.shape[0]
         
@@ -22,19 +26,194 @@ def bilp_two_most_distant(D,lazy=False,verbose=False):
 
     x = {}
     y = {}
+    u = {}
+    v = {}
+    b = {}
+    for i in range(n):
+        for j in range(i+1,n):
+            x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
+    AP.update()
+
+  
+    
+    for i in range(n):
+        for j in range(i+1,n):
+            for k in range(j+1,n):
+                trans_cons = []
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] <= 1))
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] >= 0))
+                if lazy:
+                    for cons in trans_cons:
+                        cons.setAttr(GRB.Attr.Lazy,1)
+    AP.update()
+    
+
+    AP.setObjective(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+    AP.setParam( 'OutputFlag', verbose )
+    AP.update()
+        
+    if verbose:
+        print('Start optimization')
+    tic = time.perf_counter()
+    AP.update()
+    AP.optimize()
+    toc = time.perf_counter()
+    if verbose:
+        print(f"Optimization in {toc - tic:0.4f} seconds")
+        print('End optimization')
+    
+    ## PAUL: I think here we need to build the symmetric part of the X matrix, using the 
+    ##       equation x_{ji}=1-x{ij}, maybe something like the following few lines of code?
+    
+    for i in range(n):
+        for j in range(i+1,n):
+            x[j,i]=1-x[i,j]
+    for i in range(n):
+        x[i,i] = 0
+        y[i,i] = 0      
+    ####
+    
+    
+    
+    P = []
+    sol_x = get_sol_x_by_x(x,n)()
+    sol_y = get_sol_x_by_x(y,n)()
+    r = np.sum(sol_x,axis=0)
+    ranking = np.argsort(-r)
+    perm_x = tuple([int(item) for item in ranking])
+    
+    r = np.sum(sol_y,axis=0)
+    ranking = np.argsort(-r)
+    perm_y = tuple([int(item) for item in ranking])
+    
+    k_x = np.sum(np.sum(D*sol_x))
+    k_y = np.sum(np.sum(D*sol_y))
+    
+    details = {"k_x": k_x, "k_y":k_y,"x": sol_x,"y":sol_y,"perm_x":perm_x,"perm_y":perm_y}
+            
+    return first_k,details
+    
+
+
+###
+
+def bilp_two_most_distant_jonad(D,lazy=False,verbose=True):
+    first_k, first_details = bilp(D,lazy=lazy,verbose=verbose)
+    if verbose:
+        print('Finished first optimization')
+    n = D.shape[0]
+        
+    AP = Model('lop')
+
+    x = {}
+    y = {}
+    z = {}
+    
     for i in range(n):
         for j in range(n):
             x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
             y[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="y(%s,%s)"%(i,j)) #binary
-
-    AP.update()
-
-    for i in range(n):
-        AP.addConstr(x[i,i] == 0)
-        AP.addConstr(y[i,i] == 0)
+            z[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j)) #binary
+            
+    
     AP.update()
     
     for i in range(n):
+            for j in range(i+1,n):         
+                    AP.addConstr(x[i,j] + x[j,i] == 1)
+                    AP.addConstr(y[i,j] + y[j,i] == 1)
+    
+    
+    for i in range(n-1):
+        for j in range(i+1,n):
+            for k in range(i+1,n):
+                if k!=j:
+                    trans_cons = []
+                    trans_cons.append(AP.addConstr(x[i,j] + x[j,k] + x[k,i] <= 2))
+                    trans_cons.append(AP.addConstr(y[i,j] + y[j,k] + y[k,i] <= 2))
+                    if lazy:
+                        for cons in trans_cons:
+                            cons.setAttr(GRB.Attr.Lazy,1)
+    AP.update()
+    AP.addConstr(quicksum((D[i,j])*x[i,j] for i in range(n-1) for j in range(n)) == first_k)
+    AP.addConstr(quicksum((D[i,j])*y[i,j] for i in range(n-1) for j in range(n)) == first_k)
+    
+    
+
+
+    AP.update()
+    for i in range(n):
+        for j in range(n):
+            AP.addConstr(x[i,j]+y[i,j]-z[i,j] <= 1)
+
+           
+    AP.update()
+
+    AP.setObjective(quicksum((z[i,j]) for i in range(n) for j in range(n)),GRB.MINIMIZE)
+    AP.setParam( 'OutputFlag', verbose )
+    AP.update()
+        
+    if verbose:
+        print('Start optimization')
+    tic = time.perf_counter()
+    AP.update()
+    AP.optimize()
+    toc = time.perf_counter()
+    if verbose:
+        print(f"Optimization in {toc - tic:0.4f} seconds")
+        print('End optimization')
+    
+    sol_x = get_sol_x_by_x(x,n)()
+    sol_y = get_sol_x_by_x(y,n)()
+    sol_z = get_sol_x_by_x(z,n)()
+    r = np.sum(sol_x,axis=0)
+    ranking = np.argsort(r)
+    perm_x = tuple([int(item) for item in ranking])
+    
+    r = np.sum(sol_y,axis=0)
+    ranking = np.argsort(r)
+    perm_y = tuple([int(item) for item in ranking])
+    
+    k_x = np.sum(D*sol_x)
+    k_y = np.sum(D*sol_y)
+    
+    details = {"obj":AP.objVal,"k_x": k_x, "k_y":k_y, "perm_x":perm_x,"perm_y":perm_y, "x": sol_x,"y":sol_y,"z":sol_z}
+            
+    return first_k,details
+    
+    
+    
+    
+    
+
+###
+
+def bilp_two_most_distant2(D,lazy=False,verbose=True):
+    first_k, first_details = bilp(D,lazy=lazy,verbose=verbose)
+    if verbose:
+        print('Finished first optimization')
+    n = D.shape[0]
+        
+    AP = Model('lop')
+
+    x = {}
+    y = {}
+    u = {}
+    v = {}
+    b = {}
+    c = {}
+    for i in range(n-1):
+        for j in range(i+1,n):
+            x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
+            y[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="y(%s,%s)"%(i,j)) #binary
+            b[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j)) #binary
+            c[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="c(%s,%s)"%(i,j)) #binary
+            u[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="u(%s,%s)"%(i,j)) #binary
+            v[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="v(%s,%s)"%(i,j)) #binary
+    
+    AP.update()
+    
+    for i in range(n-1):
         for j in range(i+1,n):
             for k in range(j+1,n):
                 trans_cons = []
@@ -46,44 +225,42 @@ def bilp_two_most_distant(D,lazy=False,verbose=False):
                     for cons in trans_cons:
                         cons.setAttr(GRB.Attr.Lazy,1)
     AP.update()
-    AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)) == first_k)
-    AP.addConstr(quicksum(D[i,j]*y[i,j] for i in range(n) for j in range(n)) == first_k)
-            
-    u={}
-    v={}
-    b={}
-    for i in range(n):
-        for j in range(i+1,n):
-            u[i,j] = AP.addVar(name="u(%s,%s)"%(i,j),lb=0)
-            v[i,j] = AP.addVar(name="v(%s,%s)"%(i,j),lb=0)
-            b[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j))
+    AP.addConstr(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)) == first_k)
+    AP.addConstr(quicksum((D[i,j]-D[j,i])*y[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)) == first_k)
+    
+    
+#np.all(np.tril(details_two_distant['v'])==np.tril(1*((details_two_distant['x']-details_two_distant['y'])>0)))
+#np.all(np.tril(details_two_distant['u'])==np.tril(1*((details_two_distant['y']-details_two_distant['x'])>0)))
+
     AP.update()
-    for i in range(n):
+    for i in range(n-1):
         for j in range(i+1,n):
-            AP.addConstr(u[i,j] - v[i,j] == x[i,j] - y[i,j])
-            AP.addConstr(u[i,j] <= b[i,j])
-            AP.addConstr(v[i,j] <= 1 - b[i,j])
+            AP.addConstr(1 - u[i,j] <= b[i,j])
+            AP.addConstr(1 - x[i,j]-y[i,j] <= 1 - b[i,j])
+            AP.addConstr(1 - v[i,j] <= c[i,j])
+            AP.addConstr(x[i,j]+y[i,j]-1 <= 1 - c[i,j])
+           
     AP.update()
 
-    #AP.setObjective(quicksum(u[i,j]-v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
-    AP.setObjective(quicksum(u[i,j]+v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
-    #AP.setParam( 'OutputFlag', False )
+    AP.setObjective(quicksum((u[i,j]+v[i,j]) for i in range(n-1) for j in range(i+1,n)),GRB.MINIMIZE)
+    AP.setParam( 'OutputFlag', verbose )
     AP.update()
         
     if verbose:
         print('Start optimization')
     tic = time.perf_counter()
-    AP.setParam( 'OutputFlag', False )
     AP.update()
     AP.optimize()
     toc = time.perf_counter()
     if verbose:
         print(f"Optimization in {toc - tic:0.4f} seconds")
         print('End optimization')
-            
-    P = []
+    
     sol_x = get_sol_x_by_x(x,n)()
+    sol_b = get_sol_x_by_x(b,n)()
     sol_y = get_sol_x_by_x(y,n)()
+    sol_v = get_sol_uv_by_x(v,n)()
+    sol_u = get_sol_uv_by_x(u,n)()
     r = np.sum(sol_x,axis=0)
     ranking = np.argsort(r)
     perm_x = tuple([int(item) for item in ranking])
@@ -92,10 +269,93 @@ def bilp_two_most_distant(D,lazy=False,verbose=False):
     ranking = np.argsort(r)
     perm_y = tuple([int(item) for item in ranking])
     
-    k_x = np.sum(np.sum(D*sol_x))
-    k_y = np.sum(np.sum(D*sol_y))
+    k_x = np.sum(D*sol_x)
+    k_y = np.sum(D*sol_y)
     
-    details = {"k_x": k_x, "k_y":k_y,"x": sol_x,"y":sol_y,"perm_x":perm_x,"perm_y":perm_y}
+    details = {"obj":AP.objVal,"k_x": k_x, "k_y":k_y, "perm_x":perm_x,"perm_y":perm_y, "x": sol_x,"y":sol_y,"u":sol_u,"v":sol_v,"b":sol_b}
+            
+    return first_k,details
+    
+
+
+
+
+
+def bilp_two_most_distant(D,lazy=False,verbose=True):
+    first_k, first_details = bilp(D,lazy=lazy,verbose=verbose)
+    if verbose:
+        print('Finished first optimization. Obj:',first_k)
+    n = D.shape[0]
+        
+    AP = Model('lop')
+
+    x = {}
+    y = {}
+    u = {}
+    v = {}
+    b = {}
+    for i in range(n-1):
+        for j in range(i+1,n):
+            x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
+            y[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="y(%s,%s)"%(i,j)) #binary
+            u[i,j] = AP.addVar(name="u(%s,%s)"%(i,j),vtype=GRB.BINARY,lb=0,ub=1) #nonnegative
+            v[i,j] = AP.addVar(name="v(%s,%s)"%(i,j),vtype=GRB.BINARY,lb=0,ub=1) #nonnegative
+    AP.update()
+    
+    for i in range(n-1):
+        for j in range(i+1,n):
+            for k in range(j+1,n):
+                trans_cons = []
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] <= 1))
+                trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] >= 0))
+                trans_cons.append(AP.addConstr(y[i,j] + y[j,k] - y[i,k] <= 1))
+                trans_cons.append(AP.addConstr(y[i,j] + y[j,k] - y[i,k] >= 0))
+                if lazy:
+                    for cons in trans_cons:
+                        cons.setAttr(GRB.Attr.Lazy,1)
+    AP.update()
+    
+    AP.addConstr(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)) == first_k)
+    AP.addConstr(quicksum((D[i,j]-D[j,i])*y[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)) == first_k)
+    
+
+    AP.update()
+    for i in range(n-1):
+        for j in range(i+1,n):
+            AP.addConstr(u[i,j] - v[i,j] == x[i,j] - y[i,j])
+            AP.addConstr(u[i,j] + v[i,j] <= 1)
+    AP.update()
+
+    AP.setObjective(quicksum((u[i,j]+v[i,j]) for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+    AP.setParam( 'OutputFlag', verbose )
+    AP.update()
+        
+    if verbose:
+        print('Start optimization')
+    tic = time.perf_counter()
+    AP.update()
+    AP.optimize()
+    toc = time.perf_counter()
+    if verbose:
+        print(f"Optimization in {toc - tic:0.4f} seconds")
+        print('End optimization')
+    
+    sol_x = get_sol_x_by_x(x,n)()
+    sol_y = get_sol_x_by_x(y,n)()
+    sol_v = get_sol_uv_by_x(v,n)()
+    sol_u = get_sol_uv_by_x(u,n)()
+    r = np.sum(sol_x,axis=0)
+    ranking = np.argsort(r)
+    perm_x = tuple([int(item) for item in ranking])
+    
+    r = np.sum(sol_y,axis=0)
+    ranking = np.argsort(r)
+    perm_y = tuple([int(item) for item in ranking])
+    
+    k_x = np.sum(D*sol_x)
+    k_y = np.sum(D*sol_y)
+    
+    details = {"obj":AP.objVal,"k_x": k_x, "k_y":k_y, "perm_x":perm_x,"perm_y":perm_y, "x": sol_x,"y":sol_y,"u":sol_u,"v":sol_v}
             
     return first_k,details
     
@@ -125,47 +385,37 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
         if os.path.isfile(model_file):
             AP = read(model_file)
             x = {}
-            for i in range(n):
-                for j in range(n):
+            for i in range(n-1):
+                for j in range(i+1,n):
                     x[i,j] = AP.getVarByName("x(%s,%s)"%(i,j))
         else:
             AP = Model('lop')
 
             x = {}
 
-            for i in range(n):
-                for j in range(n):
+            for i in range(n-1):
+                for j in range(i+1,n):
                     x[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="x(%s,%s)"%(i,j)) #binary
 
             AP.update()
-
             for i in range(n):
-                for j in range(n):
-                    if j!=i:
-                        AP.addConstr(x[i,j] + x[j,i] == 1)
-                    else:
-                        AP.addConstr(x[i,i] == 0)
-
-            AP.update()
-            I = []
-            for i in range(n):
-                for j in range(n):
-                    for k in range(n):
-                        if j != i and k != j and k != i:
-                            idx = (i,j,k)           
-                            if lazy:
-                                AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2).setAttr(GRB.Attr.Lazy,1)
-                            else:
-                                AP.addConstr(x[idx[0],idx[1]] + x[idx[1],idx[2]] + x[idx[2],idx[0]] <= 2)
+                for j in range(i+1,n):
+                    for k in range(j+1,n):
+                        trans_cons = []
+                        trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] <= 1))
+                        trans_cons.append(AP.addConstr(x[i,j] + x[j,k] - x[i,k] >= 0))
+                        if lazy:
+                            for cons in trans_cons:
+                                cons.setAttr(GRB.Attr.Lazy,1)
 
             AP.update()
             AP.write(model_file)
         if first_k is not None:
-            AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)) == first_k)
+            AP.addConstr(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)) == first_k)
         
         tic = time.perf_counter()
-        AP.setObjective(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n)),GRB.MAXIMIZE)
-        AP.setParam( 'OutputFlag', False )
+        AP.setObjective(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
+        AP.setParam( 'OutputFlag', verbose )
         AP.update()
         toc = time.perf_counter()
         if verbose:
@@ -186,48 +436,49 @@ def bilp(D_orig,num_random_restarts=0,lazy=False,verbose=False,find_pair=False):
             
         P = []
         sol_x = get_sol_x_by_x(x,n)()
+        reorder = np.argsort(perm_inxs)
+        sol_x = sol_x[np.ix_(reorder,reorder)]
         r = np.sum(sol_x,axis=0)
         ranking = np.argsort(r)
-        key = tuple([int(item) for item in ranking])
-        perm = tuple(perm_inxs[np.array(key)])
-        P.append(perm)
-        reorder = np.argsort(perm_inxs)
-        xs.append(sol_x[np.ix_(reorder,reorder)])
+        #key = tuple([int(item) for item in ranking])
+        #perm = tuple(perm_inxs[np.array(key)])
+        #P.append(perm)
+        P.append(tuple(ranking))
+        xs.append(sol_x)
         
         if ix == 0:
             Pfirst = P
             xfirst = get_sol_x_by_x(x,n)()
         
         Pfinal.extend(P)
-        objs.append(k)
+        objs.append(np.sum(D_orig*sol_x))
     
         if find_pair:
             AP = read(model_file)
             x = {}
-            for i in range(n):
-                for j in range(n):
+            for i in range(n-1):
+                for j in range(i+1,n):
                     x[i,j] = AP.getVarByName("x(%s,%s)"%(i,j))
-            AP.addConstr(quicksum(D[i,j]*x[i,j] for i in range(n) for j in range(n))==k)
+            AP.addConstr(quicksum((D[i,j]-D[j,i])*x[i,j]+D[j,i] for i in range(n-1) for j in range(i+1,n))==k)
             AP.update()
             u={}
             v={}
             b={}
-            for i in range(n):
+            for i in range(n-1):
                 for j in range(i+1,n):
                     u[i,j] = AP.addVar(name="u(%s,%s)"%(i,j),lb=0)
                     v[i,j] = AP.addVar(name="v(%s,%s)"%(i,j),lb=0)
                     b[i,j] = AP.addVar(lb=0,vtype=GRB.BINARY,ub=1,name="b(%s,%s)"%(i,j))
             AP.update()
-            for i in range(n):
+            for i in range(n-1):
                 for j in range(i+1,n):
                     AP.addConstr(u[i,j] - v[i,j] == x[i,j] - sol_x[i,j])
-                    AP.addConstr(u[i,j] >= b[i,j])
+                    AP.addConstr(u[i,j] <= b[i,j])
                     AP.addConstr(v[i,j] <= 1 - b[i,j])
             AP.update()
             
-            #AP.setObjective(quicksum(u[i,j]-v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
             AP.setObjective(quicksum(u[i,j]+v[i,j] for i in range(n-1) for j in range(i+1,n)),GRB.MAXIMIZE)
-            AP.setParam( 'OutputFlag', False )
+            AP.setParam( 'OutputFlag', verbose )
             AP.update()
             
             if verbose:
@@ -525,7 +776,7 @@ def objective_count_perm(Dorig,perm):
     D = Dorig[np.ix_(perm,perm)]#[perm,:][:,perm]
     return np.sum(np.sum(np.triu(D)))
 
-def objective_count_exhaustive(D,X):
+def objective_count_exhaustive(D):
     n = D.shape[0]
     min_value = -np.Inf
     solutions = []
